@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Trading Station</title>
+<meta name="description" content="Market making and Fermi estimation under a clock, with the follow-ups a trader actually asks">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Station">
+<meta name="theme-color" content="#10161c">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<!-- ==================== HOME ==================== -->
+<main id="screen-home" class="screen active">
+  <header class="home-header">
+    <div>
+      <h1>Trading Station</h1>
+      <p class="subtitle">quote it, carry it, and answer the follow-up before the clock runs out</p>
+    </div>
+    <span class="badge" id="ready-badge">no sessions yet</span>
+  </header>
+
+  <button class="start-btn" id="btn-mm">
+    <span class="start-title">Make a market</span>
+    <span class="start-desc" id="mm-desc"></span>
+  </button>
+
+  <div class="row2">
+    <button class="start-btn alt" id="btn-fermi">
+      <span class="start-title">Fermi sprint</span>
+      <span class="start-desc">estimate under a clock, graded on calibration</span>
+    </button>
+    <button class="start-btn alt" id="btn-judge">
+      <span class="start-title">Follow-ups</span>
+      <span class="start-desc">the interruptions, as flashcards</span>
+    </button>
+  </div>
+
+  <p class="best-line" id="best-line"></p>
+
+  <section class="panel">
+    <button class="preset-btn" id="btn-interview">
+      <span class="preset-title">Interview mode</span>
+      <span class="preset-desc">60s for the opening quote, 10s to requote, spread capped at 10% of your bid, derived markets and a digital option, no feedback until the debrief</span>
+    </button>
+
+    <h2>Market making</h2>
+    <div class="setting-row"><label>Scenario</label>
+      <div class="seg" data-key="mode">
+        <button data-val="compound">City product</button>
+        <button data-val="fermi">Fermi quantity</button>
+        <button data-val="mixed">Mixed</button>
+      </div></div>
+    <div class="setting-row"><label>Clocks</label>
+      <div class="seg" data-key="preset">
+        <button data-val="warmup">Warm-up</button>
+        <button data-val="standard">Standard</button>
+        <button data-val="interview">Interview</button>
+      </div></div>
+    <div class="setting-row"><label>Feedback</label>
+      <div class="seg" data-key="feedback">
+        <button data-val="end">At the debrief</button>
+        <button data-val="step">After each step</button>
+      </div></div>
+    <div class="setting-row"><label>P&amp;L accepted within</label>
+      <div class="seg" data-key="pnlTolerance">
+        <button data-val="0.02">2%</button><button data-val="0.05">5%</button><button data-val="0.1">10%</button>
+      </div></div>
+    <p class="note">The city product is the reported IMC exercise: distance times the population of one city times the population density of the other. You give your three inputs first, so the app can check your quote against your own arithmetic.</p>
+
+    <h2>Fermi sprint</h2>
+    <div class="setting-row"><label>Questions</label>
+      <div class="seg" data-key="fermiCount">
+        <button data-val="5">5</button><button data-val="10">10</button><button data-val="20">20</button>
+      </div></div>
+    <div class="setting-row"><label>Per question</label>
+      <div class="seg" data-key="fermiSecs">
+        <button data-val="0">off</button><button data-val="30">30s</button><button data-val="45">45s</button><button data-val="90">90s</button>
+      </div></div>
+    <label class="toggle-row"><span>Ask for a 90% interval
+      <small>the only way to train calibration: you want about nine in ten to contain the answer</small></span>
+      <input type="checkbox" data-key="fermiInterval"></label>
+
+    <h2>Data</h2>
+    <button class="danger-btn" id="btn-reset">Erase all session history</button>
+  </section>
+</main>
+
+<!-- ==================== MARKET MAKING ==================== -->
+<main id="screen-mm" class="screen">
+  <div class="game-top">
+    <button class="quit" id="mm-quit">quit</button>
+    <span id="mm-step"></span>
+    <span class="timer" id="mm-timer">0:00</span>
+  </div>
+
+  <div class="scenario-card">
+    <div class="scenario-title" id="mm-title"></div>
+    <div class="scenario-prompt" id="mm-prompt"></div>
+  </div>
+
+  <div id="mm-say" class="say"></div>
+  <div id="mm-feedback" class="feedback hidden"></div>
+
+  <div id="mm-inputs"></div>
+
+  <button class="submit-btn" id="mm-submit">Submit</button>
+
+  <div class="ledger" id="mm-ledger"></div>
+</main>
+
+<!-- ==================== MM RESULTS ==================== -->
+<main id="screen-mmres" class="screen">
+  <h1>Debrief</h1>
+  <div class="scorebox">
+    <div class="score" id="res-score"></div>
+    <div class="score-sub" id="res-grade"></div>
+  </div>
+  <div class="card" id="res-truth"></div>
+  <h2>Where the marks went</h2>
+  <div id="res-lines"></div>
+  <h2>Your quotes and trades</h2>
+  <div class="ledger" id="res-ledger"></div>
+  <div class="card" id="res-hint"></div>
+  <div class="row2">
+    <button class="submit-btn" id="res-again">Another</button>
+    <button class="submit-btn ghost" id="res-home">Home</button>
+  </div>
+</main>
+
+<!-- ==================== FERMI ==================== -->
+<main id="screen-fermi" class="screen">
+  <div class="game-top">
+    <button class="quit" id="f-quit">quit</button>
+    <span id="f-step"></span>
+    <span class="timer" id="f-timer">0:00</span>
+  </div>
+  <div class="scenario-card">
+    <div class="scenario-prompt big" id="f-q"></div>
+    <div class="scenario-title" id="f-unit"></div>
+  </div>
+  <div id="f-feedback" class="feedback hidden"></div>
+  <div id="f-inputs"></div>
+  <button class="submit-btn" id="f-submit">Submit</button>
+  <p class="note">Shorthand works: <code>4.5bn</code>, <code>83m</code>, <code>1.2e9</code>, <code>272</code>.</p>
+</main>
+
+<main id="screen-fres" class="screen">
+  <h1>Fermi debrief</h1>
+  <div class="scorebox">
+    <div class="score" id="fres-score"></div>
+    <div class="score-sub" id="fres-sub"></div>
+  </div>
+  <div class="card" id="fres-cal"></div>
+  <h2>Question by question</h2>
+  <div id="fres-list"></div>
+  <div class="row2">
+    <button class="submit-btn" id="fres-again">Another</button>
+    <button class="submit-btn ghost" id="fres-home">Home</button>
+  </div>
+</main>
+
+<!-- ==================== JUDGEMENT ==================== -->
+<main id="screen-judge" class="screen">
+  <div class="game-top">
+    <button class="quit" id="j-quit">quit</button>
+    <span id="j-step"></span>
+    <span class="timer" id="j-timer"></span>
+  </div>
+  <div class="scenario-card"><div class="scenario-prompt" id="j-q"></div></div>
+  <div id="j-opts"></div>
+  <div id="j-why" class="feedback hidden"></div>
+  <button class="submit-btn" id="j-next">Next</button>
+</main>
+
+<!-- ==================== STATS ==================== -->
+<main id="screen-stats" class="screen">
+  <h1>Progress</h1>
+  <div id="stats-body"></div>
+</main>
+
+<!-- ==================== BRIEF ==================== -->
+<main id="screen-brief" class="screen">
+  <h1>Brief</h1>
+  <div class="learn">
+
+    <h2>The quote ritual</h2>
+    <ol>
+      <li><b>Clarify.</b> Restate the quantity and ask the one question that resolves the planted ambiguity. On a city market that is always the boundary definition.</li>
+      <li><b>Decompose out loud.</b> Two to four assumptions, each a number someone could check.</li>
+      <li><b>Quote.</b> "My market is X at Y." Fair inside, and say why that width.</li>
+      <li><b>Move with the flow.</b> Every trade against you shifts both prices and tells you something.</li>
+      <li><b>Know your position and your P&amp;L</b> at every instant, because they will ask mid-calculation.</li>
+    </ol>
+
+    <h2>Width is a derived number, not a habit</h2>
+    <p>For a product, relative errors add in quadrature. Three percent on a distance, ten on a population and fifteen on a density give <code>sqrt(0.03² + 0.10² + 0.15²) = 18%</code>. Quote about one standard deviation wide in total and say that sentence out loud. A spread you can decompose beats a spread you cannot.</p>
+
+    <h2>The identities that must hold across your own quotes</h2>
+    <ul>
+      <li>Bid strictly below ask, always.</li>
+      <li><b>population = area x density</b>, exactly. Any two pin the third.</li>
+      <li>The product fair equals the product of the component fairs.</li>
+      <li>Digital prices fall as the strike rises, and your bid on a higher strike stays below your ask on a lower strike.</li>
+      <li>Every fair descends from <b>one</b> set of estimates. Re-estimating independently writes someone a free option.</li>
+    </ul>
+
+    <h2>What else they might put in front of you</h2>
+    <p>Ranked by how often the reported corpus sees them at this stage.</p>
+    <ol>
+      <li><b>Fermi market making.</b> The core. An invented quantity, a two-way price, then trades.</li>
+      <li><b>Compound and derived markets.</b> This year's version: a triple product, then the ratio, the area, a component. Graded on consistency as much as accuracy.</li>
+      <li><b>Higher-lower with Kelly sizing.</b> Thirteen cards, a bankroll, stake <code>2p - 1</code>. Pass at the seven, bet everything on a certainty.</li>
+      <li><b>The card-sum market.</b> Quote a market on the sum of the next three cards, with a running count as the deck depletes. Fair for a fresh deck is 21 with ace low.</li>
+      <li><b>Dice markets.</b> Sum of three dice, the higher of two, an option to reroll. Price the reroll as value-with minus value-without.</li>
+      <li><b>A prior against a market.</b> You are told a probability and shown a price on a hundred-contract. Trade only where your fair is outside their quote, and say why your information is not already in the price.</li>
+      <li><b>Odds, the overround, and dutch books.</b> Decimal <code>d</code> implies <code>1/d</code>. American <code>+X</code> implies <code>100/(X+100)</code>. If the implied probabilities sum below one, stake in proportion to <code>1/d</code> and lock the difference.</li>
+      <li><b>Event quoting.</b> A tennis match, an election, a sporting result. Same ritual, softer anchors.</li>
+      <li><b>Order-book mechanics.</b> Where you get filled, the mid, the volume-weighted price of taking size, what your resting order does. This is the prerequisite for any simulator station.</li>
+      <li><b>Options basics.</b> Name the five Greeks, the short-put payoff, put-call parity and the conversion trade. Basics only, by their own account.</li>
+      <li><b>Common-value auctions.</b> A jar of coins, sealed bids. Winner's curse: shade more as bidders multiply. Second-price makes truthful bidding dominant.</li>
+      <li><b>Pricing a game.</b> "How much would you pay to play?" Expected value, then the option value of being allowed to stop, then a risk haircut.</li>
+      <li><b>Group exercises.</b> Some accounts report a shared trading game. Collaboration is explicitly weighted at this stage.</li>
+    </ol>
+
+    <h2>The five rules that decide the round</h2>
+    <ul>
+      <li><b>Commit.</b> A reported candidate was rejected with every answer correct, for hedging.</li>
+      <li><b>They challenge correct answers on purpose.</b> Re-derive in one line and hold.</li>
+      <li><b>Narrate.</b> Silence is the most reported failure.</li>
+      <li><b>Ask the clarifying question.</b> The ambiguity is planted.</li>
+      <li><b>Be wrong fast.</b> Name it, fix it, carry on.</li>
+    </ul>
+  </div>
+</main>
+
+<nav id="tabbar">
+  <button data-tab="home" class="on">Drill</button>
+  <button data-tab="stats">Progress</button>
+  <button data-tab="brief">Brief</button>
+</nav>
+
+<div id="update-banner" class="update-banner hidden">A new version is ready. <button id="btn-reload">Reload</button></div>
+
+<script src="./js/data.js"></script>
+<script src="./js/storage.js"></script>
+<script src="./js/engine.js"></script>
+<script src="./js/fermi.js"></script>
+<script src="./js/stats.js"></script>
+<script src="./js/app.js"></script>
+</body>
+</html>

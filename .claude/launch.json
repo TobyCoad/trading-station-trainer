@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "trading-station",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8391",
+        "--directory",
+        "C:/dev/trading-station-trainer"
+      ],
+      "port": 8391
+    }
+  ]
+}
