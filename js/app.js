@@ -1,6 +1,6 @@
 /* App shell: screens, settings, and the three drills. */
 (function () {
-  const APP_VERSION = 1;
+  const APP_VERSION = 3;
   window.APP_VERSION = APP_VERSION;
   const el = id => document.getElementById(id);
   const SCREENS = ['home', 'mm', 'mmres', 'fermi', 'fres', 'judge', 'stats', 'brief'];
@@ -44,7 +44,7 @@
     document.querySelectorAll('input[type=checkbox][data-key]').forEach(c =>
       c.addEventListener('change', () => { settings[c.dataset.key] = c.checked; Store.saveSettings(settings); }));
     el('btn-interview').addEventListener('click', () => {
-      Object.assign(settings, { preset: 'interview', feedback: 'end', mode: 'compound', pnlTolerance: 0.10 });
+      Object.assign(settings, { preset: 'interview', feedback: 'end', mode: 'compound', pnlTolerance: 0.10, ledger: 'hide' });
       Store.saveSettings(settings); syncSettings(); refreshHome(); startMM();
     });
     el('btn-reset').addEventListener('click', () => {
@@ -96,6 +96,16 @@
    *                        MARKET MAKING
    * ================================================================ */
   let S = null, phase = null, ctx = null;
+
+  /* Per-question transcript for the debrief: what was asked, what you said,
+   * what was right, and why. Filled in as each step is answered. */
+  const plain = h => h.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim();
+  function logStep(prompt, answer, ok, truth, note) {
+    if (!S) return;
+    const limit = (S.steps && S.steps.length ? S.preset.stepSec : S.preset.openSec) * 1000;
+    const ms = elapsed();
+    (S.steps = S.steps || []).push({ prompt, answer, ok: ok === 'near' ? 'near' : ok ? 'ok' : 'no', truth, note: note || '', secs: Math.round(ms / 1000), late: ms > limit });
+  }
 
   function startMM() {
     S = Engine.newSession(settings.mode, settings.preset);
@@ -232,6 +242,7 @@
     }
 
     el('mm-say').innerHTML = say;
+    ctx.prompt = plain(say).replace(/^Trader:\s*/, '');
     el('mm-inputs').innerHTML = inputs;
     el('mm-submit').classList.toggle('hidden', ev.type === 'judgement');
     if (ev.type === 'judgement') {
@@ -248,6 +259,7 @@
     const ok = i === ev.item.a;
     Engine.addMark(S, 'judgement', ok, (ok ? 'Right call: ' : 'Wrong call: ') + ev.item.q);
     S.judgeLast = { ok, item: ev.item };
+    logStep(ctx.prompt || ev.item.q, ev.item.opts[i], ok, ev.item.opts[ev.item.a], ev.item.why);
     stepFeedback(ok, ok ? 'Right.' : 'Not the answer they want.', ev.item.why);
     advance();
   }
@@ -278,14 +290,26 @@
         Engine.addMark(S, 'inputs', d <= 0.301,
           `${c.label}: you said ${sig(c.key === 'popA' ? vals[c.key] / 1e6 : vals[c.key], 3)}, true ${sig(c.key === 'popA' ? c.v / 1e6 : c.v, 3)} ${c.unit}`);
       }
+      const within = c => Math.abs(Math.log10(vals[c.key] / c.v)) <= 0.301;
+      const showV = (c, v) => sig(c.key === 'popA' ? v / 1e6 : v, 3);
+      logStep('Your three inputs, before you quote',
+        sc.components.map(c => `${c.label} ${showV(c, vals[c.key])}`).join(' | '),
+        sc.components.every(within) ? true : sc.components.some(within) ? 'near' : false,
+        sc.components.map(c => `${c.label} ${showV(c, c.v)} ${c.unit}`).join(' | '),
+        'Within a factor of two on each input is the target; the product then lands close enough to quote around.');
       phase = 'open'; renderPhase(); return;
     }
     if (phase === 'open') {
       const b = num(el('in-bid').value), a = num(el('in-ask').value);
       if (!isFinite(b) || !isFinite(a)) return flash('Two numbers, please.');
       if (a <= b) return flash('Your ask must be above your bid.');
-      Engine.submitQuote(S, b, a, elapsed());
+      const q = Engine.submitQuote(S, b, a, elapsed());
       const t = Engine.toScaled(sc, sc.trueValue);
+      const openMarks = S.marks.filter(m => ['accuracy', 'capture', 'spread', 'spreadcap', 'consistency'].includes(m.kind));
+      logStep('"Make me a market." (opening quote)', `${sig(b, 4)} at ${sig(a, 4)}, mid ${sig((a + b) / 2, 4)}`,
+        (t >= b && t <= a) ? true : (q.logErr <= 0.301 ? 'near' : false),
+        `True value ${sig(t, 4)}${sc.scaleName ? ' ' + sc.scaleName : ''}; your mid was ${Engine.accuracyWord(q.logErr)} it`,
+        openMarks.map(m => m.detail).join('. ') + '.');
       stepFeedback(t >= b && t <= a, t >= b && t <= a ? 'True value is inside your market.' : 'True value is outside your market.',
         'True value ' + sig(t, 4) + (sc.scaleName ? ' ' + sc.scaleName : ''));
       phase = 'event'; S.idx = 0; renderEvent(); return;
@@ -297,8 +321,23 @@
       if (!isFinite(b) || !isFinite(a)) return flash('Two numbers, please.');
       if (a <= b) return flash('Your ask must be above your bid.');
       const before = S.marks.length;
+      const prevQ = Engine.lastQuote(S);
       Engine.submitQuote(S, b, a, elapsed());
       const added = S.marks.slice(before).filter(m => ['flow', 'size', 'news'].includes(m.kind));
+      const t = Engine.toScaled(sc, sc.trueValue);
+      let truth = '';
+      if (ev.type === 'trade') {
+        const bk = Engine.book(S.trades);
+        const bookNow = (bk.pos === 0 ? 'flat' : bk.pos > 0 ? 'long ' + bk.pos : 'short ' + (-bk.pos)) + ', cash ' + sig(bk.cash, 4);
+        truth = `They ${ev.side === 'buy' ? 'bought from you, so your mid should move up' : 'sold to you, so your mid should move down'} from ${sig((prevQ.bid + prevQ.ask) / 2, 4)}. Book now: ${bookNow}`;
+      } else if (ev.type === 'size') {
+        truth = `Widen for size: clearly wider than ${sig(prevQ.ask - prevQ.bid, 3)} (or refuse the size), and say why`;
+      } else if (ev.type === 'news') {
+        truth = `Recentre toward the truth, ${sig(t, 4)}${sc.scaleName ? ' ' + sc.scaleName : ''}, and tighten`;
+      }
+      logStep(ctx.prompt || ev.type, `${sig(b, 4)} at ${sig(a, 4)}, mid ${sig((a + b) / 2, 4)}`,
+        added.length ? added.every(m => m.ok) : true, truth,
+        added.map(m => m.detail).join('. ') + (ev.type === 'news' && S.newsShown ? '. ' + S.newsShown.follow : ''));
       if (added.length) stepFeedback(added.every(m => m.ok), added.map(m => m.detail).join('. '), ev.type === 'news' && S.newsShown ? S.newsShown.follow : '');
       return advance();
     }
@@ -307,6 +346,9 @@
       const truth = Engine.book(S.trades).pos;
       const ok = isFinite(v) && Math.round(v) === truth;
       Engine.addMark(S, 'position', ok, `Position: you said ${isFinite(v) ? v : '—'}, it was ${truth}`);
+      logStep(ctx.prompt, isFinite(v) ? String(v) : '(blank)', ok,
+        truth === 0 ? 'Flat' : (truth > 0 ? 'Long ' + truth : 'Short ' + (-truth)),
+        'Count every fill: they buy from you, you go shorter; they sell to you, you go longer.');
       stepFeedback(ok, ok ? 'Correct.' : 'Wrong.', `You are ${truth === 0 ? 'flat' : (truth > 0 ? 'long ' + truth : 'short ' + (-truth))}.`);
       return advance();
     }
@@ -317,6 +359,13 @@
       const tol = Math.max(Math.abs(truth) * settings.pnlTolerance, 1e-9);
       const ok = isFinite(v) && Math.abs(v - truth) <= tol && (truth === 0 || Math.sign(v) === Math.sign(truth));
       Engine.addMark(S, 'pnl', ok, `P&L at your fair: you said ${isFinite(v) ? sig(v, 4) : '—'}, it was ${sig(truth, 4)}`);
+      {
+        const bk = Engine.book(S.trades);
+        const near = isFinite(v) && Math.sign(v) === Math.sign(truth) && Math.abs(v - truth) <= Math.max(Math.abs(truth) * 0.25, 1e-9);
+        logStep(ctx.prompt, isFinite(v) ? sig(v, 4) : '(blank)', ok ? true : (near ? 'near' : false),
+          `${sig(truth, 4)}: cash ${sig(bk.cash, 4)} + position ${bk.pos} x fair ${sig(mid, 4)}`,
+          `Accepted within ${Math.round(settings.pnlTolerance * 100)}%. Two numbers, always: position and cash; P&L is cash plus position times your mid.`);
+      }
       stepFeedback(ok, ok ? 'Correct.' : 'Off.', `Marked at your fair of ${sig(mid, 4)} the book is ${sig(truth, 4)}.`);
       return advance();
     }
@@ -329,6 +378,8 @@
       const inside = t >= b && t <= a;
       const near = Math.abs(Math.log10(mid / t)) <= 0.301;
       Engine.addMark(S, 'derived', inside || near, `${d.label}: you quoted ${sig(b, 3)} at ${sig(a, 3)}, true ${sig(t, 3)}`);
+      logStep(ctx.prompt, `${sig(b, 3)} at ${sig(a, 3)}`, inside ? true : near ? 'near' : false,
+        `True ${sig(t, 3)}${d.scaleName ? ' ' + d.scaleName : ''} ${d.unit}`, d.check);
       stepFeedback(inside || near, inside ? 'Inside.' : near ? 'Close enough.' : 'Missed.', d.check);
       return advance();
     }
@@ -342,6 +393,9 @@
       const noZero = !(a <= 0.5 && d.coherent > 0.5);
       Engine.addMark(S, 'digital', ok, `Digital: you quoted ${sig(b, 3)} at ${sig(a, 3)}; coherent with your own market was about ${Math.round(d.coherent)}`);
       Engine.addMark(S, 'digital', noZero, noZero ? 'Offered something for the tail' : 'Quoted a zero offer on a tail you cannot rule out');
+      logStep(ctx.prompt, `${sig(b, 3)} at ${sig(a, 3)}`, ok && noZero ? true : (ok || noZero) ? 'near' : false,
+        `About ${Math.round(d.coherent)}, reading your own spread as one standard deviation; it settled at ${d.settles}`,
+        (noZero ? '' : 'Never offer zero on a tail you cannot rule out. ') + 'Price it off your own market, not a fresh opinion.');
       stepFeedback(ok, ok ? 'Coherent.' : 'Not coherent with your own market.',
         `Reading your own spread as one standard deviation, that strike is worth about ${Math.round(d.coherent)}. It settled at ${d.settles}.`);
       return advance();
@@ -368,6 +422,11 @@
   function renderLedger(target) {
     const node = el(target || 'mm-ledger');
     if (!S) { node.innerHTML = ''; return; }
+    /* In the room nobody shows you your fills. Hidden by default in interview mode;
+     * the debrief always shows the full ledger. */
+    if (!target && settings.ledger === 'hide') {
+      node.innerHTML = '<p class="dim">Ledger hidden: keep position and cash yourself.</p>'; return;
+    }
     const items = []
       .concat(S.quotes.map(q => ({ seq: q.seq, html:
         `<div class="lrow"><span class="ltag">quote</span><span>${sig(q.bid, 4)} at ${sig(q.ask, 4)}</span><span class="lms">${(q.ms / 1000).toFixed(1)}s${q.late ? ' late' : ''}</span></div>` })))
@@ -416,6 +475,14 @@
           <div class="mhead"><b>${NAMES[l.kind] || l.kind}</b><span>${Math.round(l.frac * 100)}%</span></div>
           <ul>${l.detail.map(d => '<li>' + esc(d) + '</li>').join('')}</ul></div>`).join('');
     renderLedger('res-ledger');
+    const steps = S.steps || [];
+    el('res-steps').innerHTML = steps.length ? steps.map((st, i) => `
+      <div class="mline step ${st.ok}">
+        <div class="mhead"><b>${i + 1}. ${esc(st.prompt)}</b><span>${st.ok === 'ok' ? 'right' : st.ok === 'near' ? 'close' : 'wrong'}${st.late ? ' · over the clock' : ''} · ${st.secs}s</span></div>
+        <div class="srow"><span class="slab">You</span><span>${esc(st.answer)}</span></div>
+        <div class="srow"><span class="slab">Right</span><span>${esc(st.truth)}</span></div>
+        ${st.note ? `<div class="srow"><span class="slab">Why</span><span class="dim">${esc(st.note)}</span></div>` : ''}
+      </div>`).join('') : '<p class="dim">No steps recorded.</p>';
     const weak = r.lines.filter(l => l.frac < 1).sort((a, b) => a.frac - b.frac).slice(0, 3);
     el('res-hint').innerHTML = weak.length
       ? '<h3>What to fix first</h3><ul>' + weak.map(l => `<li>${esc(NAMES[l.kind] || l.kind)}</li>`).join('') + '</ul>'

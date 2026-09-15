@@ -34,9 +34,17 @@ The interruptions, all graded:
 | A digital option on your own quantity | Coherence with your own market, read as one sigma |
 | A judgement call, multiple choice | The escalation responses, with model answers |
 
+The debrief opens with **every question in order**: what the trader asked, what you answered, what
+the right answer was, and one line on why (for a trade: which way your mid should have moved and
+the book after the fill; for P&L: the cash + position x fair breakdown). Each step is marked right,
+close or wrong, with the seconds taken and an over-the-clock flag. This is the part to read after an
+interview-mode run, since interview mode hides all feedback until the end.
+
 Scoring covers opening accuracy, whether you captured the truth, spread discipline, the spread cap,
 consistency with your own inputs, flow response, position and P&L tracking, derived markets, option
 coherence, judgement and the clock. The debrief names the three things to fix first.
+
+The running ledger of your own quotes and fills can be hidden during the drill (**Live ledger: Hidden**), so you keep position and cash yourself the way you will have to in the room; the debrief always shows it. Interview mode hides it.
 
 **Interview mode** is one tap: 60 seconds to open, 10 seconds to requote, the spread capped at 10%
 of your bid (the corroborated IMC ruleset), derived markets and a digital option in the script, and

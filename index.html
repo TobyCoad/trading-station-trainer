@@ -69,6 +69,11 @@
         <button data-val="end">At the debrief</button>
         <button data-val="step">After each step</button>
       </div></div>
+    <div class="setting-row"><label>Live ledger of your fills</label>
+      <div class="seg" data-key="ledger">
+        <button data-val="show">Shown</button>
+        <button data-val="hide">Hidden</button>
+      </div></div>
     <div class="setting-row"><label>P&amp;L accepted within</label>
       <div class="seg" data-key="pnlTolerance">
         <button data-val="0.02">2%</button><button data-val="0.05">5%</button><button data-val="0.1">10%</button>
@@ -124,6 +129,9 @@
     <div class="score-sub" id="res-grade"></div>
   </div>
   <div class="card" id="res-truth"></div>
+  <h2>Every question, in order</h2>
+  <p class="note">What was asked, what you answered, what the right answer was, and why. Read this before the marks.</p>
+  <div id="res-steps"></div>
   <h2>Where the marks went</h2>
   <div id="res-lines"></div>
   <h2>Your quotes and trades</h2>

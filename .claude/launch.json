@@ -4,14 +4,10 @@
     {
       "name": "trading-station",
       "runtimeExecutable": "python",
-      "runtimeArgs": [
-        "-m",
-        "http.server",
-        "8391",
-        "--directory",
-        "C:/dev/trading-station-trainer"
-      ],
-      "port": 8391
+      "runtimeArgs": ["serve.py"],
+      "cwd": "C:/dev/trading-station-trainer",
+      "port": 8392,
+      "autoPort": true
     }
   ]
 }

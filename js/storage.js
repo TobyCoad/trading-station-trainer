@@ -8,6 +8,7 @@ const Store = (function () {
     mode: 'mixed',          // 'compound' | 'fermi' | 'mixed'
     preset: 'standard',     // warmup | standard | interview
     feedback: 'end',        // 'end' = interview realism, 'step' = mark as you go
+    ledger: 'show',         // 'hide' = no running list of your quotes and fills during the drill
     pnlTolerance: 0.10,
     fermiCount: 10,
     fermiSecs: 45,
