@@ -18,7 +18,7 @@ Two scenario families:
   first x population density of the second*. You enter your three inputs first, so the app can check
   your quote against your own arithmetic. Thirty cities, so 870 ordered pairs, every true value
   computed from the table rather than looked up.
-- **Fermi quantity** — a single estimated quantity from a bank of sixty, filtered to the ones you
+- **Fermi quantity** — a single estimated quantity from a bank of 266, filtered to the ones you
   can sensibly quote a price on.
 
 The interruptions, all graded:
