@@ -50,13 +50,15 @@ The running ledger of your own quotes and fills can be hidden during the drill (
 of your bid (the corroborated IMC ruleset), derived markets and a digital option in the script, the
 live ledger hidden, and no feedback until the debrief.
 
-It serves **questions that were actually reported, best-sourced first**, each once: IMC reports from
-Glassdoor with an Amsterdam or European location, then IMC reports with no office on record, then
-other firms and the published interview lists. Every fourth sitting is the city product so that
-ritual stays warm. A sitting only counts when you finish it, so quitting never burns a question.
-Once every reported question has been sat, the mode becomes a weighted mix of everything. The
-debrief shows where each question was reported. The same ordering is available outside interview
-mode as the **Reported first** scenario setting.
+It serves **a different question every sitting, from the whole bank**. Each sitting draws at random
+from four sources: the general Fermi bank (about half of sittings), the reported bank (a third), the
+city product (11%) and the town product (7%, plus the times it arrives as a reported question). Nothing repeats until its source has been exhausted, the
+same kind of question never comes up twice running, and within the reported bank the better-sourced
+questions are weighted up rather than put first: IMC reports with an Amsterdam or European location
+count three times, IMC with no office on record twice, other firms and the published lists once. A
+question is only marked as seen when you finish the sitting. The debrief shows where a reported
+question came from. The same selection is available outside interview mode as the **Interview mix**
+scenario setting.
 
 The reported bank (`Data.REPORTED` in `js/data.js`) has four shapes:
 

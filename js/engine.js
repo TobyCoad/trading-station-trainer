@@ -169,23 +169,93 @@ const Engine = (function () {
     return quantityScenario(r.variants ? pick(r.variants) : r, r.src);
   }
 
-  /* Interview sequencing. Reported questions first, best-sourced first, each once;
-   * every fourth sitting is the city product so that ritual stays warm. When the
-   * reported bank is exhausted it becomes a weighted mix of everything. */
-  function nextReported(progress) {
+  /* Interview selection: a different question every sitting, from the whole bank.
+   *
+   * Four sources are mixed at random: the general Fermi bank, the reported bank,
+   * the town product and the city product. Nothing repeats until its source is
+   * exhausted, the same reported family never comes up twice running, and the
+   * better-sourced reported questions are weighted up rather than put first.
+   *
+   * `progress.seen` holds keys: 'F|<wording>' for the Fermi bank, '<id>' for a
+   * reported question, '<id>|<wording>' for one variant of a reported family.
+   */
+  const MIX = [['fermi', 0.50], ['reported', 0.32], ['city', 0.11], ['town', 0.07]];
+  const TIER_WEIGHT = { 1: 3, 2: 2, 3: 1 };
+
+  function weighted(items, w) {
+    let tot = 0;
+    for (const it of items) tot += w(it);
+    let x = Math.random() * tot;
+    for (const it of items) { x -= w(it); if (x <= 0) return it; }
+    return items[items.length - 1];
+  }
+
+  function interviewPool(progress) {
     const seen = new Set((progress && progress.seen) || []);
-    const n = (progress && progress.n) || 0;
-    const pool = Data.REPORTED.filter(r => !r.sprintOnly);
-    const unseen = pool.filter(r => !seen.has(r.id)).sort((x, y) => x.tier - y.tier);
-    if (unseen.length) {
-      if (n % 4 === 3) return { scenario: compoundScenario(), id: null, left: unseen.length };
-      return { scenario: reportedScenario(unseen[0]), id: unseen[0].id, left: unseen.length - 1 };
+    /* The same wording can sit in both banks (a country's population), so a
+     * question counts as seen whichever bank it was served from. */
+    const wording = new Set([...seen].map(k => k.slice(k.indexOf('|') + 1)));
+    const fermi = MM_FERMI.filter(f => !wording.has(f.q));
+    const reported = [];
+    for (const r of Data.REPORTED) {
+      if (r.sprintOnly) continue;
+      if (r.variants) {
+        const fresh = r.variants.filter(v => !wording.has(v.q));
+        if (fresh.length) reported.push({ r, fresh });
+      } else if (r.type === 'town' || r.type === 'odds') {
+        reported.push({ r });                  /* generated fresh each time, never exhausted */
+      } else if (!seen.has(r.id)) reported.push({ r });
     }
-    const x = Math.random();
-    if (x < 0.45) { const r = pick(pool); return { scenario: reportedScenario(r), id: r.id, left: 0 }; }
-    if (x < 0.65) return { scenario: townScenario('The reported IMC town-product shape'), id: null, left: 0 };
-    if (x < 0.80) return { scenario: compoundScenario(), id: null, left: 0 };
-    return { scenario: fermiScenario(), id: null, left: 0 };
+    return { fermi, reported };
+  }
+
+  /* Never the same question twice running, whatever the draw or a reset throws up. */
+  function nextInterview(progress) {
+    const lastTitle = (progress && progress.lastTitle) || '';
+    let r = drawInterview(progress);
+    for (let i = 0; i < 8 && r.scenario.title === lastTitle; i++) r = drawInterview(progress);
+    return r;
+  }
+
+  function drawInterview(progress) {
+    const last = (progress && progress.last) || '';
+    let { fermi, reported } = interviewPool(progress);
+    /* An exhausted source starts again rather than dropping out of the mix. */
+    const reset = [];
+    if (!fermi.length) { fermi = MM_FERMI.slice(); reset.push('F|'); }
+    /* Likewise the reported bank: once every fixed question has been sat, start it
+     * again, so that slot never decays into nothing but generated markets. */
+    const isGenerated = x => x.r.type === 'town' || x.r.type === 'odds';
+    if (!reported.some(x => !isGenerated(x))) {
+      reported = interviewPool({ seen: [...((progress && progress.seen) || [])].filter(k => k.startsWith('F|')) }).reported;
+      reset.push('R!');
+    }
+    /* A town product can arrive from the mix or from the reported bank; treat both
+     * as the same shape so it never comes up twice running by either route. */
+    const shapeOf = r => (r.type === 'town' ? '#town' : r.id);
+    const notLast = reported.filter(x => shapeOf(x.r) !== last);
+    if (notLast.length) reported = notLast;
+    const unseen = fermi.length + reported.filter(x => !(x.r.type === 'town' || x.r.type === 'odds')).length;
+
+    let src = weighted(MIX, m => m[1])[0];
+    /* Do not serve the same shape of generated market twice in a row either. */
+    if ((src === 'city' && last === '#city') || (src === 'town' && last === '#town')) src = 'fermi';
+    if (src === 'reported' && !reported.length) src = 'fermi';
+
+    if (src === 'city') return { scenario: compoundScenario(), key: null, last: '#city', unseen, reset };
+    if (src === 'town') return { scenario: townScenario('The reported IMC town-product shape'), key: null, last: '#town', unseen, reset };
+    if (src === 'reported') {
+      const pickd = weighted(reported, x => TIER_WEIGHT[x.r.tier] || 1);
+      const r = pickd.r;
+      if (r.variants) {
+        const v = pick(pickd.fresh);
+        return { scenario: quantityScenario(v, r.src), key: r.id + '|' + v.q, last: r.id, unseen, reset };
+      }
+      const generated = r.type === 'town' || r.type === 'odds';
+      return { scenario: reportedScenario(r), key: generated ? null : r.id, last: shapeOf(r), unseen, reset };
+    }
+    const f = pick(fermi);
+    return { scenario: quantityScenario(f, null), key: 'F|' + f.q, last: 'F', unseen, reset };
   }
 
   /* ---------------- event script ---------------- */
@@ -226,10 +296,10 @@ const Engine = (function () {
 
   function newSession(mode, presetName, progress) {
     const preset = PRESETS[presetName] || PRESETS.standard;
-    let sc, reportedId = null, reportedLeft = null;
+    let sc, pickKey = null, pickLast = null, pickReset = [];
     if (mode === 'reported') {
-      const r = nextReported(progress);
-      sc = r.scenario; reportedId = r.id; reportedLeft = r.left;
+      const r = nextInterview(progress);
+      sc = r.scenario; pickKey = r.key; pickLast = r.last; pickReset = r.reset;
     } else if (mode === 'compound') sc = compoundScenario();
     else if (mode === 'fermi') sc = fermiScenario();
     else {
@@ -238,7 +308,7 @@ const Engine = (function () {
          : reportedScenario(pick(Data.REPORTED.filter(r => !r.sprintOnly)));
     }
     return {
-      scenario: sc, reportedId, reportedLeft, mode,
+      scenario: sc, pickKey, pickLast, pickReset, mode,
       preset, presetName,
       events: buildEvents(sc, preset),
       idx: -1,               // -1 = components/opening quote phase
@@ -451,7 +521,7 @@ const Engine = (function () {
   }
 
   return {
-    PRESETS, newSession, nextReported, reportedScenario, submitQuote, fillTrade, makeNews, makeDerived, makeDigital,
+    PRESETS, newSession, nextInterview, interviewPool, reportedScenario, submitQuote, fillTrade, makeNews, makeDerived, makeDigital,
     book, pnlAt, lastQuote, lastMid, score, addMark, toScaled, fromScaled,
     parseNum, sig, pickScale, accuracyWord, normCdf,
   };

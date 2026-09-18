@@ -1,6 +1,6 @@
 /* App shell: screens, settings, and the three drills. */
 (function () {
-  const APP_VERSION = 5;
+  const APP_VERSION = 6;
   window.APP_VERSION = APP_VERSION;
   const el = id => document.getElementById(id);
   const SCREENS = ['home', 'mm', 'mmres', 'fermi', 'fres', 'judge', 'stats', 'brief'];
@@ -53,11 +53,11 @@
   }
   function refreshHome() {
     const p = Engine.PRESETS[settings.preset];
-    const rp = Store.loadReported();
-    const left = Data.REPORTED.filter(r => !r.sprintOnly && !rp.seen.includes(r.id)).length;
+    const pool = Engine.interviewPool(Store.loadReported());
+    const left = pool.fermi.length + pool.reported.filter(x => !(x.r.type === 'town' || x.r.type === 'odds')).length;
     const modeName = settings.mode === 'compound' ? 'city product'
                    : settings.mode === 'fermi' ? 'Fermi quantity'
-                   : settings.mode === 'reported' ? (left ? `reported questions first, ${left} unseen` : 'reported questions, all seen once, now mixed')
+                   : settings.mode === 'reported' ? `interview mix, a new question every time, ${left} unseen`
                    : 'mixed scenarios';
     el('mm-desc').textContent = `${modeName} · ${p.label} clocks · ${p.openSec}s to open, ${p.stepSec}s to requote`;
     const h = Store.mmHistory();
@@ -113,6 +113,14 @@
 
   function startMM() {
     S = Engine.newSession(settings.mode, settings.preset, Store.loadReported());
+    if (S.mode === 'reported') {
+      /* Remember the shape just served straight away, so even a sitting you quit
+       * is never followed by the same kind of question. */
+      const rp = Store.loadReported();
+      rp.last = S.pickLast;
+      rp.lastTitle = S.scenario.title;
+      Store.saveReported(rp);
+    }
     phase = S.scenario.components ? 'components' : 'open';
     ctx = {};
     el('mm-title').textContent = S.scenario.kind === 'compound' ? 'City product · ' + S.scenario.title
@@ -451,7 +459,10 @@
       /* Only a finished sitting counts, so quitting never burns a reported question. */
       const rp = Store.loadReported();
       rp.n = (rp.n || 0) + 1;
-      if (S.reportedId && !rp.seen.includes(S.reportedId)) rp.seen.push(S.reportedId);
+      for (const prefix of (S.pickReset || [])) {
+        rp.seen = prefix === 'R!' ? rp.seen.filter(k => k.startsWith('F|')) : rp.seen.filter(k => !k.startsWith(prefix));
+      }
+      if (S.pickKey && !rp.seen.includes(S.pickKey)) rp.seen.push(S.pickKey);
       Store.saveReported(rp);
     }
     Store.pushMM({
