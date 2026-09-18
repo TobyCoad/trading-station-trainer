@@ -47,8 +47,25 @@ coherence, judgement and the clock. The debrief names the three things to fix fi
 The running ledger of your own quotes and fills can be hidden during the drill (**Live ledger: Hidden**), so you keep position and cash yourself the way you will have to in the room; the debrief always shows it. Interview mode hides it.
 
 **Interview mode** is one tap: 60 seconds to open, 10 seconds to requote, the spread capped at 10%
-of your bid (the corroborated IMC ruleset), derived markets and a digital option in the script, and
-no feedback until the debrief.
+of your bid (the corroborated IMC ruleset), derived markets and a digital option in the script, the
+live ledger hidden, and no feedback until the debrief.
+
+It serves **questions that were actually reported, best-sourced first**, each once: IMC reports from
+Glassdoor with an Amsterdam or European location, then IMC reports with no office on record, then
+other firms and the published interview lists. Every fourth sitting is the city product so that
+ritual stays warm. A sitting only counts when you finish it, so quitting never burns a question.
+Once every reported question has been sat, the mode becomes a weighted mix of everything. The
+debrief shows where each question was reported. The same ordering is available outside interview
+mode as the **Reported first** scenario setting.
+
+The reported bank (`Data.REPORTED` in `js/data.js`) has four shapes:
+
+| Shape | Example | How it is graded |
+|---|---|---|
+| A single quantity | Cats in Japan; the population of a country, a fresh country each time | Opening accuracy against the true value, within a factor of two |
+| A town product | Dentists in a town times schools in that town, the reported IMC later-round exercise | You give both counts first, then your quote is checked against your own product |
+| A market with a computable fair that settles on a draw | The sum of the largest three of five dice; red marbles in an urn of 100 | Accuracy against the **fair**, within 10%; P&L against the **draw**, so you can quote well and still lose |
+| An event contract paying 100 | A tennis match with bookmaker odds quoted | Fair is the odds with the margin stripped out; no news or option step, since it settles at 0 or 100 |
 
 ### 2. Fermi sprint
 

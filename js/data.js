@@ -337,6 +337,108 @@ const Data = (function () {
     { q: 'Snowflakes in a cubic metre of fresh snow', v: 1e8, unit: 'flakes', hint: 'Hundreds of thousands per litre.' },
   ];
 
+
+  /* ---------------- reported bank ----------------
+   * Quantities that were actually put to candidates, per the scrape: Glassdoor,
+   * Wall Street Oasis, prep-site compilations and the classic published lists.
+   * tier 1 = IMC with an Amsterdam or European report, 2 = IMC elsewhere or
+   * office unknown, 3 = another firm or a published list.
+   *
+   * type 'fermi'   one quantity; `variants` means a fresh one each time it recurs
+   * type 'town'    the reported "dentists x schools in a village" shape: a product
+   *                of two counts in a town, with both inputs asked for first
+   * type 'noisy'   the market has a computable FAIR but settles on a realised
+   *                draw, so accuracy is graded against fair and P&L against the draw
+   * type 'odds'    an event contract paying 100; fair comes from de-vigging the odds
+   */
+  const REPORTED = [
+    { id: 'cats-japan', tier: 1, type: 'fermi', src: 'IMC, Glassdoor, Amsterdam. Asked twice, once as "what is the bid and ask?"',
+      q: 'Cats in Japan', v: 9.1e6, unit: 'cats',
+      hint: '125M people and about 55M households. Roughly one household in ten keeps a cat, 1.7 cats each. The pet-food industry survey puts it near 9 million, a little ahead of dogs.' },
+    { id: 'country-pop', tier: 1, type: 'fermi', src: 'IMC, Glassdoor, phone screen, United Kingdom: "make a market for the population of a country"',
+      variants: [
+        { q: 'Population of Canada', v: 41e6, unit: 'people', hint: 'A little over a tenth of the United States.' },
+        { q: 'Population of Japan', v: 124e6, unit: 'people', hint: 'Falling by more than half a million a year.' },
+        { q: 'Population of Brazil', v: 212e6, unit: 'people', hint: 'Half of South America.' },
+        { q: 'Population of Spain', v: 49e6, unit: 'people', hint: 'Between Poland and Italy.' },
+        { q: 'Population of Poland', v: 37e6, unit: 'people', hint: 'The fifth largest in the EU.' },
+        { q: 'Population of South Korea', v: 52e6, unit: 'people', hint: 'Half of it in greater Seoul.' },
+        { q: 'Population of Indonesia', v: 283e6, unit: 'people', hint: 'Fourth largest in the world.' },
+        { q: 'Population of Egypt', v: 116e6, unit: 'people', hint: 'Nearly all of it along the Nile.' },
+        { q: 'Population of Argentina', v: 46e6, unit: 'people', hint: 'A third of it in greater Buenos Aires.' },
+        { q: 'Population of Sweden', v: 10.6e6, unit: 'people', hint: 'The largest Nordic country, about twice Denmark.' },
+        { q: 'Population of Belgium', v: 11.8e6, unit: 'people', hint: 'Two thirds of the Netherlands.' },
+        { q: 'Population of Italy', v: 59e6, unit: 'people', hint: 'Shrinking; a touch under France and the UK.' },
+        { q: 'Population of France', v: 68e6, unit: 'people', hint: 'Level with the UK.' },
+        { q: 'Population of the United Kingdom', v: 69e6, unit: 'people', hint: 'England alone is 57M.' },
+        { q: 'Population of Mexico', v: 130e6, unit: 'people', hint: 'Tenth largest in the world.' },
+        { q: 'Population of Turkey', v: 86e6, unit: 'people', hint: 'Level with Germany.' },
+        { q: 'Population of South Africa', v: 63e6, unit: 'people', hint: 'A little under the UK.' },
+        { q: 'Population of Ireland', v: 5.4e6, unit: 'people', hint: 'The Republic; the island is about 7.3M.' },
+        { q: 'Population of Switzerland', v: 9.0e6, unit: 'people', hint: 'Half the Netherlands.' },
+        { q: 'Population of Portugal', v: 10.6e6, unit: 'people', hint: 'Level with Sweden and Greece.' },
+        { q: 'Population of Australia', v: 27e6, unit: 'people', hint: 'Fewer than the Netherlands plus Belgium, on a continent.' },
+        { q: 'Population of the Netherlands', v: 18.0e6, unit: 'people', hint: 'Know this one exactly for an Amsterdam interview.' },
+      ] },
+    { id: 'town-product', tier: 2, type: 'town', src: 'IMC, later rounds: "dentists in a village times schools in that village", spread within 10% of bid, one minute then ten seconds' },
+    { id: 'top3-of-5-dice', tier: 2, type: 'noisy', src: 'IMC, later rounds, same clock and spread rule',
+      q: 'The sum of the largest three of five fair dice', unit: 'pips', fair: 34811 / 2592, draw: 'top3of5',
+      hint: 'Fair is 13.43 exactly. Reason from order statistics: five dice sum to 17.5, and the two smallest of five average about 1.5 and 2.6, so 17.5 minus 4.1. It settles on an actual roll, so you can quote well and still lose.' },
+    { id: 'urn-red', tier: 2, type: 'noisy', src: 'IMC, reported online: "I will pay you one pound per red marble. Make me a market."',
+      q: 'Red marbles in an urn of 100, red and blue in unknown proportion, paid at one pound each', unit: 'pounds', fair: 50, draw: 'urn100',
+      hint: 'With no information the fair is 50 and the uncertainty is enormous, so the honest market is wide. The test is whether you say why it is wide and what a sample of marbles would do to it.' },
+    { id: 'event-odds', tier: 2, type: 'odds', src: 'IMC, final round: "predict a tennis match and make a market on it"; and later rounds: betting against a prior with a bookmaker quoting' },
+    { id: 'everest-sea', tier: 2, type: 'fermi', src: 'IMC, reported online',
+      q: 'Rise in global sea level if the mass of Mount Everest were sunk in the ocean', v: 0.17, unit: 'millimetres',
+      hint: 'The circulated mass is about 1.6e14 kg; at 2,700 kg per cubic metre that is 6e10 cubic metres. Spread over 3.6e14 square metres of ocean it is 0.17 mm. A generous cone for the mountain gets you nearer 0.7 mm, so anything from 0.1 to 1 is defensible if you show the division.' },
+    { id: 'digits-100-factorial', tier: 2, type: 'fermi', src: 'IMC on Reddit and QuantProf; also tagged at SIG and Optiver',
+      q: 'Digits in 100 factorial', v: 158, unit: 'digits',
+      hint: 'Sum of log10 k for k to 100, or Stirling: 100 log10(100/e) plus about 1.4 is 157.97, so 158 digits.' },
+    { id: 'us-olympic-golds', tier: 3, type: 'fermi', src: 'Old Mission, final round and phone screen, with P&L and exposure tracked across iterations',
+      q: 'Olympic gold medals won by the United States, all Games through Paris 2024', v: 1219, unit: 'gold medals',
+      hint: 'About 1,105 at Summer Games and 114 at Winter Games. Thirty Summer Games at roughly 37 each is the quick route.' },
+    { id: 'aaa-batteries-uk', tier: 3, type: 'fermi', src: 'SIG, reported online',
+      q: 'AAA batteries sold in the United Kingdom in a year', v: 200e6, unit: 'batteries',
+      hint: 'The UK buys about 600 million household batteries a year, roughly nine a person. AA is the largest share and AAA about a third.' },
+    { id: 'three-dice-sum', tier: 3, type: 'noisy', src: 'SIG, reported online: "I will pay you the sum of three dice. What would you pay, and where would you sell?"',
+      q: 'The sum of three fair dice', unit: 'pips', fair: 10.5, draw: 'sum3',
+      hint: 'Fair is 10.5 with a standard deviation of 2.96. Buy below, sell above, and the gap between the two is what you charge for the variance.' },
+    { id: 'gas-stations-us', tier: 3, type: 'fermi', src: 'Published interview lists, reported online',
+      q: 'Petrol stations in the United States', v: 145e3, unit: 'stations',
+      hint: '340M people and 285M vehicles. One station per 2,000 vehicles or so.' },
+    { id: 'pizzas-us-day', tier: 3, type: 'fermi', src: 'Published interview lists, reported online',
+      q: 'Pizzas eaten in the United States in a day', v: 8.2e6, unit: 'pizzas',
+      hint: 'About three billion a year, nine a person, so a little over eight million a day.' },
+    { id: 'cars-stolen-us-month', tier: 3, type: 'fermi', src: 'Published interview lists, reported online',
+      q: 'Cars stolen in the United States in a month', v: 85e3, unit: 'cars',
+      hint: 'About a million a year recently, one vehicle in 280.' },
+    { id: 'yankees-season', tier: 3, type: 'fermi', src: 'Published interview lists, reported online',
+      q: 'Total attendance at New York Yankees home games in a season', v: 3.3e6, unit: 'people',
+      hint: '81 home games at about 41,000 each.' },
+    { id: 'wall-street-jobs', tier: 3, type: 'fermi', src: 'Published interview lists, reported online',
+      q: 'People employed in the securities industry in New York City', v: 200e3, unit: 'people',
+      hint: 'The state comptroller counts just under 200,000, about one New York job in twenty.' },
+    { id: 'ocean-drops', tier: 3, type: 'fermi', sprintOnly: true, src: 'Published interview lists, reported online',
+      q: 'Drops of water in the oceans', v: 2.7e25, unit: 'drops',
+      hint: 'Ocean volume is 1.3 billion cubic kilometres, which is 1.3e24 millilitres, at twenty drops a millilitre.' },
+  ];
+
+  /* People per establishment, United Kingdom, rounded. Used to build town products. */
+  const TOWN_RATES = [
+    { key: 'dentists', label: 'Dentists', per: 1900 },
+    { key: 'schools', label: 'Schools', per: 2750 },
+    { key: 'pubs', label: 'Pubs', per: 1500 },
+    { key: 'gps', label: 'GPs', per: 1800 },
+    { key: 'pharmacies', label: 'Pharmacies', per: 5000 },
+    { key: 'hairdressers', label: 'Hairdressers and barbers', per: 1400 },
+    { key: 'churches', label: 'Churches', per: 1700 },
+    { key: 'postoffices', label: 'Post offices', per: 5800 },
+  ];
+  const TOWN_SIZES = [5000, 12000, 30000, 80000];
+
+  /* Bookmaker decimal odds for a two-player match: favourite, outsider. */
+  const ODDS_PAIRS = [[1.40, 3.10], [1.25, 4.20], [1.62, 2.40], [1.85, 2.05], [1.12, 7.00], [1.50, 2.75], [2.10, 1.80]];
+
   /* ---------------- judgement bank: the interruptions, as multiple choice ----------------
    * `why` is the model answer, read aloud in the debrief.
    */
@@ -503,5 +605,5 @@ const Data = (function () {
     },
   ];
 
-  return { CITIES, FERMI, JUDGEMENT, greatCircle, density };
+  return { CITIES, FERMI, REPORTED, TOWN_RATES, TOWN_SIZES, ODDS_PAIRS, JUDGEMENT, greatCircle, density };
 })();

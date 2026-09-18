@@ -91,6 +91,103 @@ const Engine = (function () {
     };
   }
 
+  /* ---------------- reported scenarios ---------------- */
+
+  const die = () => 1 + Math.floor(Math.random() * 6);
+  const DRAWS = {
+    top3of5: () => { const r = [die(), die(), die(), die(), die()].sort((a, b) => b - a); return r[0] + r[1] + r[2]; },
+    sum3: () => die() + die() + die(),
+    urn100: () => 1 + Math.floor(Math.random() * 99),
+  };
+
+  function quantityScenario(f, src) {
+    const sc = pickScale(f.v);
+    return {
+      kind: 'fermi', title: f.q, src: src || null,
+      prompt: 'Make a market on: ' + f.q.charAt(0).toLowerCase() + f.q.slice(1) + '.',
+      unitName: f.unit, scale: sc.m, scaleName: sc.name, trueValue: f.v, hint: f.hint, components: null,
+    };
+  }
+
+  /* The reported "dentists x schools in a village": two counts in one town, multiplied. */
+  function townScenario(src) {
+    let a, b;
+    if (Math.random() < 0.4) {
+      a = Data.TOWN_RATES.find(r => r.key === 'dentists'); b = Data.TOWN_RATES.find(r => r.key === 'schools');
+    } else { [a, b] = pickTwo(Data.TOWN_RATES); }
+    /* Big enough that neither count is a fraction of one establishment. */
+    const fits = Data.TOWN_SIZES.filter(n => n / a.per >= 2 && n / b.per >= 2);
+    const P = fits.length ? pick(fits) : Data.TOWN_SIZES[Data.TOWN_SIZES.length - 1];
+    const va = P / a.per, vb = P / b.per, v = va * vb;
+    const sc = pickScale(v);
+    const low = s => s.charAt(0).toLowerCase() + s.slice(1);
+    return {
+      kind: 'product', title: a.label + ' x ' + low(b.label) + ', town of ' + P.toLocaleString(), src: src || null,
+      prompt: 'Make a market on: the number of ' + low(a.label) + ' in a town of ' + P.toLocaleString() +
+              ' people, multiplied by the number of ' + low(b.label) + ' in that town.',
+      unitName: low(a.label) + ' x ' + low(b.label), scale: sc.m, scaleName: sc.name, trueValue: v,
+      hint: 'UK averages: one per ' + a.per.toLocaleString() + ' people for ' + low(a.label) + ' and one per ' +
+            b.per.toLocaleString() + ' for ' + low(b.label) + ', so about ' + sig(va, 2) + ' and ' + sig(vb, 2) + '.',
+      components: [
+        { key: 'a', label: a.label + ' in the town', unit: 'count', v: va, entryScale: 1,
+          fact: 'there are about ' + sig(va, 2) + ' ' + low(a.label) + ' in the town' },
+        { key: 'b', label: b.label + ' in the town', unit: 'count', v: vb, entryScale: 1,
+          fact: 'there are about ' + sig(vb, 2) + ' ' + low(b.label) + ' in the town' },
+      ],
+    };
+  }
+
+  /* A computable fair, settled on a realised draw: you can quote well and still lose. */
+  function noisyScenario(r) {
+    return {
+      kind: 'fermi', title: r.q, src: r.src, noisy: true,
+      prompt: 'Make a market on: ' + r.q.charAt(0).toLowerCase() + r.q.slice(1) + '. It settles on an actual draw.',
+      unitName: r.unit, scale: 1, scaleName: '', fairValue: r.fair, trueValue: DRAWS[r.draw](), hint: r.hint, components: null,
+    };
+  }
+
+  /* An event contract paying 100. Fair is the bookmaker's price with the margin stripped out. */
+  function oddsScenario(src) {
+    const [a, b] = pick(Data.ODDS_PAIRS);
+    const ia = 1 / a, ib = 1 / b, pa = ia / (ia + ib);
+    return {
+      kind: 'fermi', title: 'Match contract at ' + a.toFixed(2) + ' against ' + b.toFixed(2), src: src || null,
+      noisy: true, binary: true,
+      prompt: 'A tennis match. The bookmaker quotes decimal odds of ' + a.toFixed(2) + ' on Player A and ' + b.toFixed(2) +
+              ' on Player B. Make a market on a contract that pays 100 if Player A wins, and nothing otherwise.',
+      unitName: 'points', scale: 1, scaleName: '', fairValue: 100 * pa, trueValue: Math.random() < pa ? 100 : 0,
+      hint: 'Implied ' + sig(100 * ia, 3) + '% and ' + sig(100 * ib, 3) + '% sum to ' + sig(100 * (ia + ib), 4) +
+            '%, so strip the margin: fair is ' + sig(100 * pa, 3) + '. Then it settles at 0 or 100, so the P&L is mostly luck and the quote is the skill.',
+      components: null,
+    };
+  }
+
+  function reportedScenario(r) {
+    if (r.type === 'town') return townScenario(r.src);
+    if (r.type === 'noisy') return noisyScenario(r);
+    if (r.type === 'odds') return oddsScenario(r.src);
+    return quantityScenario(r.variants ? pick(r.variants) : r, r.src);
+  }
+
+  /* Interview sequencing. Reported questions first, best-sourced first, each once;
+   * every fourth sitting is the city product so that ritual stays warm. When the
+   * reported bank is exhausted it becomes a weighted mix of everything. */
+  function nextReported(progress) {
+    const seen = new Set((progress && progress.seen) || []);
+    const n = (progress && progress.n) || 0;
+    const pool = Data.REPORTED.filter(r => !r.sprintOnly);
+    const unseen = pool.filter(r => !seen.has(r.id)).sort((x, y) => x.tier - y.tier);
+    if (unseen.length) {
+      if (n % 4 === 3) return { scenario: compoundScenario(), id: null, left: unseen.length };
+      return { scenario: reportedScenario(unseen[0]), id: unseen[0].id, left: unseen.length - 1 };
+    }
+    const x = Math.random();
+    if (x < 0.45) { const r = pick(pool); return { scenario: reportedScenario(r), id: r.id, left: 0 }; }
+    if (x < 0.65) return { scenario: townScenario('The reported IMC town-product shape'), id: null, left: 0 };
+    if (x < 0.80) return { scenario: compoundScenario(), id: null, left: 0 };
+    return { scenario: fermiScenario(), id: null, left: 0 };
+  }
+
   /* ---------------- event script ---------------- */
 
   const PRESETS = {
@@ -108,28 +205,40 @@ const Engine = (function () {
     /* A derived market only exists on the city product; elsewhere spend the slot
      * on a judgement call so every preset keeps its length. */
     const D = () => (sc.kind === 'compound' ? { type: 'derived' } : J());
+    /* A contract that settles at 0 or 100 has no bracket to reveal and no sensible
+     * option on top of it, so those slots become judgement calls. */
+    const N = () => (sc.binary ? J() : { type: 'news' });
+    const G = () => (sc.binary ? J() : { type: 'digital' });
 
     if (preset.script === 'warmup') {
-      return [T(first), T(first), { type: 'position' }, { type: 'news' }, { type: 'pnl' }];
+      return [T(first), T(first), { type: 'position' }, N(), { type: 'pnl' }];
     }
     if (preset.script === 'standard') {
       return [T(first), T(first), { type: 'position' }, T(other), { type: 'pnl' },
-              { type: 'size', mult: 10 }, { type: 'news' }, J(), D(), { type: 'pnl' }];
+              { type: 'size', mult: 10 }, N(), J(), D(), { type: 'pnl' }];
     }
     return [T(first), T(first), { type: 'position' }, T(first), { type: 'size', mult: 10 },
-            { type: 'pnl' }, { type: 'news' }, J(), T(other), D(),
-            { type: 'digital' }, { type: 'pnl' }];
+            { type: 'pnl' }, N(), J(), T(other), D(),
+            G(), { type: 'pnl' }];
   }
 
   /* ---------------- session ---------------- */
 
-  function newSession(mode, presetName) {
+  function newSession(mode, presetName, progress) {
     const preset = PRESETS[presetName] || PRESETS.standard;
-    const sc = mode === 'compound' ? compoundScenario()
-             : mode === 'fermi' ? fermiScenario()
-             : (Math.random() < 0.5 ? compoundScenario() : fermiScenario());
+    let sc, reportedId = null, reportedLeft = null;
+    if (mode === 'reported') {
+      const r = nextReported(progress);
+      sc = r.scenario; reportedId = r.id; reportedLeft = r.left;
+    } else if (mode === 'compound') sc = compoundScenario();
+    else if (mode === 'fermi') sc = fermiScenario();
+    else {
+      const x = Math.random();
+      sc = x < 0.34 ? compoundScenario() : x < 0.67 ? fermiScenario()
+         : reportedScenario(pick(Data.REPORTED.filter(r => !r.sprintOnly)));
+    }
     return {
-      scenario: sc,
+      scenario: sc, reportedId, reportedLeft, mode,
       preset, presetName,
       events: buildEvents(sc, preset),
       idx: -1,               // -1 = components/opening quote phase
@@ -180,12 +289,15 @@ const Engine = (function () {
     addMark(s, 'timing', !late, late ? 'Over the clock on a quote' : 'Quote inside the clock');
 
     if (!prev) {
-      const trueScaled = toScaled(sc, sc.trueValue);
+      const target = toScaled(sc, sc.fairValue != null ? sc.fairValue : sc.trueValue);
+      const word = sc.fairValue != null ? 'fair value' : 'true value';
       const mid = (bid + ask) / 2;
-      const logErr = Math.abs(Math.log10(mid / trueScaled));
+      const logErr = Math.abs(Math.log10(mid / target));
       q.logErr = logErr;
-      addMark(s, 'accuracy', logErr <= 0.301, 'Opening mid was ' + accuracyWord(logErr) + ' the true value', 1);
-      addMark(s, 'capture', trueScaled >= bid && trueScaled <= ask, 'True value ' + (trueScaled >= bid && trueScaled <= ask ? 'was' : 'was not') + ' inside the opening market');
+      /* A dice or odds market has an exact fair, so the bar is 10%, not a factor of two. */
+      const bar = sc.fairValue != null ? Math.log10(1.10) : 0.301;
+      addMark(s, 'accuracy', logErr <= bar, 'Opening mid was ' + accuracyWord(logErr) + ' the ' + word, 1);
+      addMark(s, 'capture', target >= bid && target <= ask, 'The ' + word + ' ' + (target >= bid && target <= ask ? 'was' : 'was not') + ' inside the opening market');
       const rel = (ask - bid) / mid;
       const sane = rel >= 0.03 && rel <= 0.6;
       addMark(s, 'spread', sane, 'Opening spread was ' + Math.round(rel * 100) + '% of the mid');
@@ -194,11 +306,11 @@ const Engine = (function () {
         addMark(s, 'spreadcap', ok, ok ? 'Respected the ' + Math.round(s.preset.spreadCap * 100) + '% spread cap'
                                        : 'Broke the ' + Math.round(s.preset.spreadCap * 100) + '% spread cap');
       }
-      if (sc.kind === 'compound' && s.componentEntry) {
-        const implied = toScaled(sc, s.componentEntry.dist * s.componentEntry.popA * s.componentEntry.densB);
+      if (sc.components && s.componentEntry) {
+        const implied = toScaled(sc, sc.components.reduce((p, c) => p * s.componentEntry[c.key], 1));
         const d = Math.abs(Math.log10(mid / implied));
         addMark(s, 'consistency', d <= 0.05,
-          'Your quoted mid ' + (d <= 0.05 ? 'matched' : 'did not match') + ' the product of your own three inputs (' + sig(implied, 3) + ')');
+          'Your quoted mid ' + (d <= 0.05 ? 'matched' : 'did not match') + ' the product of your own inputs (' + sig(implied, 3) + ')');
       }
     } else {
       /* Direction: the market must move with the flow of the trade just done. */
@@ -249,12 +361,12 @@ const Engine = (function () {
   /* News: either reveal one true component (compound) or bracket the truth. */
   function makeNews(s) {
     const sc = s.scenario;
-    if (sc.kind === 'compound' && Math.random() < 0.75) {
+    if (sc.components && Math.random() < 0.75) {
       const c = pick(sc.components);
-      const shown = c.key === 'popA' ? sig(c.v / 1e6, 3) + ' million' : sig(c.v, 3) + ' ' + c.unit;
+      const shown = sig(c.v / c.entryScale, 3) + ' ' + (c.unit === 'millions' ? 'million' : c.unit);
       return {
         style: 'component',
-        text: 'Fact: the ' + c.label.charAt(0).toLowerCase() + c.label.slice(1) + ' is ' + shown + '.',
+        text: 'Fact: ' + (c.fact || ('the ' + c.label.charAt(0).toLowerCase() + c.label.slice(1) + ' is ' + shown)) + '.',
         follow: 'Recompute. It is a product, so this leg moves your fair proportionally.',
       };
     }
@@ -339,7 +451,7 @@ const Engine = (function () {
   }
 
   return {
-    PRESETS, newSession, submitQuote, fillTrade, makeNews, makeDerived, makeDigital,
+    PRESETS, newSession, nextReported, reportedScenario, submitQuote, fillTrade, makeNews, makeDerived, makeDigital,
     book, pnlAt, lastQuote, lastMid, score, addMark, toScaled, fromScaled,
     parseNum, sig, pickScale, accuracyWord, normCdf,
   };

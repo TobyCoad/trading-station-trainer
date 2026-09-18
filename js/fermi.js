@@ -4,7 +4,9 @@
 const Fermi = (function () {
 
   function newRun(n, withInterval, secs) {
-    const pool = Data.FERMI.slice();
+    /* Reported single quantities join the sprint pool, de-duplicated by wording. */
+    const have = new Set(Data.FERMI.map(x => x.q));
+    const pool = Data.FERMI.concat(Data.REPORTED.filter(r => r.type === 'fermi' && !r.variants && !have.has(r.q)));
     for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];

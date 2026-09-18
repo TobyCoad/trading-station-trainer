@@ -3,6 +3,7 @@ const Store = (function () {
   const KEY_SETTINGS = 'tst.settings.v1';
   const KEY_MM = 'tst.mm.v1';
   const KEY_FERMI = 'tst.fermi.v1';
+  const KEY_REPORTED = 'tst.reported.v1';
 
   const DEFAULTS = {
     mode: 'mixed',          // 'compound' | 'fermi' | 'mixed'
@@ -39,10 +40,13 @@ const Store = (function () {
   }
   const mmHistory = () => load(KEY_MM, []);
   const fermiHistory = () => load(KEY_FERMI, []);
+  /* Which reported questions have been sat, and how many interview sittings so far. */
+  const loadReported = () => Object.assign({ seen: [], n: 0 }, load(KEY_REPORTED, {}));
+  const saveReported = p => save(KEY_REPORTED, p);
 
   function reset() {
-    [KEY_MM, KEY_FERMI].forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+    [KEY_MM, KEY_FERMI, KEY_REPORTED].forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
   }
 
-  return { DEFAULTS, loadSettings, saveSettings, pushMM, pushFermi, mmHistory, fermiHistory, reset };
+  return { DEFAULTS, loadSettings, saveSettings, pushMM, pushFermi, mmHistory, fermiHistory, loadReported, saveReported, reset };
 })();

@@ -1,6 +1,6 @@
 /* App shell: screens, settings, and the three drills. */
 (function () {
-  const APP_VERSION = 4;
+  const APP_VERSION = 5;
   window.APP_VERSION = APP_VERSION;
   const el = id => document.getElementById(id);
   const SCREENS = ['home', 'mm', 'mmres', 'fermi', 'fres', 'judge', 'stats', 'brief'];
@@ -44,7 +44,7 @@
     document.querySelectorAll('input[type=checkbox][data-key]').forEach(c =>
       c.addEventListener('change', () => { settings[c.dataset.key] = c.checked; Store.saveSettings(settings); }));
     el('btn-interview').addEventListener('click', () => {
-      Object.assign(settings, { preset: 'interview', feedback: 'end', mode: 'compound', pnlTolerance: 0.10, ledger: 'hide' });
+      Object.assign(settings, { preset: 'interview', feedback: 'end', mode: 'reported', pnlTolerance: 0.10, ledger: 'hide' });
       Store.saveSettings(settings); syncSettings(); refreshHome(); startMM();
     });
     el('btn-reset').addEventListener('click', () => {
@@ -53,8 +53,12 @@
   }
   function refreshHome() {
     const p = Engine.PRESETS[settings.preset];
+    const rp = Store.loadReported();
+    const left = Data.REPORTED.filter(r => !r.sprintOnly && !rp.seen.includes(r.id)).length;
     const modeName = settings.mode === 'compound' ? 'city product'
-                   : settings.mode === 'fermi' ? 'Fermi quantity' : 'mixed scenarios';
+                   : settings.mode === 'fermi' ? 'Fermi quantity'
+                   : settings.mode === 'reported' ? (left ? `reported questions first, ${left} unseen` : 'reported questions, all seen once, now mixed')
+                   : 'mixed scenarios';
     el('mm-desc').textContent = `${modeName} · ${p.label} clocks · ${p.openSec}s to open, ${p.stepSec}s to requote`;
     const h = Store.mmHistory();
     const f = Store.fermiHistory();
@@ -108,12 +112,12 @@
   }
 
   function startMM() {
-    S = Engine.newSession(settings.mode, settings.preset);
-    phase = (S.scenario.kind === 'compound') ? 'components' : 'open';
+    S = Engine.newSession(settings.mode, settings.preset, Store.loadReported());
+    phase = S.scenario.components ? 'components' : 'open';
     ctx = {};
-    el('mm-title').textContent = S.scenario.kind === 'compound'
-      ? 'City product · ' + S.scenario.title
-      : 'Fermi market';
+    el('mm-title').textContent = S.scenario.kind === 'compound' ? 'City product · ' + S.scenario.title
+      : S.scenario.kind === 'product' ? 'Town product · reported shape'
+      : S.scenario.src ? 'Reported question' : 'Fermi market';
     el('mm-prompt').textContent = S.scenario.prompt;
     show('mm');
     renderPhase();
@@ -163,7 +167,7 @@
     const sc = S.scenario;
     if (phase === 'components') {
       el('mm-step').textContent = 'your inputs';
-      el('mm-say').innerHTML = '<b>Before you quote:</b> what are your three numbers? They will be checked against the market you then make.';
+      el('mm-say').innerHTML = '<b>Before you quote:</b> what are your ' + (sc.components.length === 2 ? 'two' : 'three') + ' numbers? They will be checked against the market you then make.';
       el('mm-inputs').innerHTML = '<div class="card">' + sc.components.map(c =>
         `<label class="stack">${esc(c.label)} <small>${esc(c.unit)}</small>
           <input class="num wide" data-ck="${c.key}" inputmode="decimal" autocomplete="off"></label>`).join('') +
@@ -249,7 +253,7 @@
       document.querySelectorAll('#mm-inputs .opt').forEach(b =>
         b.addEventListener('click', () => answerJudgement(+b.dataset.i)));
     } else if (el('in-bid')) wireSpreadHint();
-    else if (el('in-one')) setTimeout(() => el('in-one').focus(), 0);
+    else if (el('in-one')) setTimeout(() => { const n = el('in-one'); if (n) n.focus(); }, 0);
     renderLedger();
     startClock(ev.type === 'position' || ev.type === 'pnl' ? Math.max(S.preset.stepSec, 15) : S.preset.stepSec, 'mm-timer');
   }
@@ -283,16 +287,16 @@
         if (!isFinite(v) || v <= 0) bad = true;
         vals[c.key] = v * c.entryScale;
       });
-      if (bad) return flash('Fill in all three.');
+      if (bad) return flash('Fill in every input.');
       S.componentEntry = vals;
       for (const c of sc.components) {
         const d = Math.abs(Math.log10(vals[c.key] / c.v));
         Engine.addMark(S, 'inputs', d <= 0.301,
-          `${c.label}: you said ${sig(c.key === 'popA' ? vals[c.key] / 1e6 : vals[c.key], 3)}, true ${sig(c.key === 'popA' ? c.v / 1e6 : c.v, 3)} ${c.unit}`);
+          `${c.label}: you said ${sig(vals[c.key] / c.entryScale, 3)}, true ${sig(c.v / c.entryScale, 3)} ${c.unit}`);
       }
       const within = c => Math.abs(Math.log10(vals[c.key] / c.v)) <= 0.301;
-      const showV = (c, v) => sig(c.key === 'popA' ? v / 1e6 : v, 3);
-      logStep('Your three inputs, before you quote',
+      const showV = (c, v) => sig(v / c.entryScale, 3);
+      logStep('Your inputs, before you quote',
         sc.components.map(c => `${c.label} ${showV(c, vals[c.key])}`).join(' | '),
         sc.components.every(within) ? true : sc.components.some(within) ? 'near' : false,
         sc.components.map(c => `${c.label} ${showV(c, c.v)} ${c.unit}`).join(' | '),
@@ -443,6 +447,13 @@
     S.done = true;
     const r = Engine.score(S);
     const sc = S.scenario;
+    if (S.mode === 'reported') {
+      /* Only a finished sitting counts, so quitting never burns a reported question. */
+      const rp = Store.loadReported();
+      rp.n = (rp.n || 0) + 1;
+      if (S.reportedId && !rp.seen.includes(S.reportedId)) rp.seen.push(S.reportedId);
+      Store.saveReported(rp);
+    }
     Store.pushMM({
       at: Date.now(), pct: r.pct, kind: sc.kind, preset: S.presetName,
       title: sc.title, settled: r.settled, position: r.position,
@@ -454,9 +465,12 @@
     const q0 = S.quotes[0];
     el('res-truth').innerHTML = `
       <h3>${esc(sc.title)}</h3>
-      <p><b>True value: ${sig(r.trueScaled, 5)}${sc.scaleName ? ' ' + sc.scaleName : ''} ${esc(sc.kind === 'compound' ? '' : sc.unitName)}</b></p>
+      ${sc.src ? `<p class="dim"><b>Reported:</b> ${esc(sc.src)}</p>` : ''}
+      ${sc.fairValue != null
+        ? `<p><b>Fair value: ${sig(sc.fairValue, 4)} ${esc(sc.unitName)}.</b> It settled at <b>${sig(r.trueScaled, 4)}</b>, which is the draw, not a verdict on your quote.</p>`
+        : `<p><b>True value: ${sig(r.trueScaled, 5)}${sc.scaleName ? ' ' + sc.scaleName : ''} ${esc(sc.components ? '' : sc.unitName)}</b></p>`}
       <p>Your opening market was ${sig(q0.bid, 4)} at ${sig(q0.ask, 4)}, a mid of ${sig((q0.bid + q0.ask) / 2, 4)} —
-      ${Engine.accuracyWord(q0.logErr)} the answer.</p>
+      ${Engine.accuracyWord(q0.logErr)} the ${sc.fairValue != null ? 'fair value' : 'answer'}.</p>
       <p>You finished <b>${r.position === 0 ? 'flat' : r.position > 0 ? 'long ' + r.position : 'short ' + (-r.position)}</b>
       with a settled P&amp;L of <b class="${r.settled >= 0 ? 'pos' : 'neg'}">${r.settled >= 0 ? '+' : ''}${sig(r.settled, 4)}</b> in quoted units.</p>
       <p class="dim">${esc(sc.hint)}</p>`;
