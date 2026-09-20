@@ -4,6 +4,7 @@ const Store = (function () {
   const KEY_MM = 'tst.mm.v1';
   const KEY_FERMI = 'tst.fermi.v1';
   const KEY_REPORTED = 'tst.reported.v1';
+  const KEY_OPT = 'tst.opt.v1';
 
   const DEFAULTS = {
     mode: 'mixed',          // 'compound' | 'fermi' | 'mixed'
@@ -14,6 +15,9 @@ const Store = (function () {
     fermiCount: 10,
     fermiSecs: 45,
     fermiInterval: true,
+    optCount: 10,
+    optSecs: 45,
+    optKinds: 'all',     // all | digital | vanilla | links
     speakPrompts: false,
   };
 
@@ -38,6 +42,12 @@ const Store = (function () {
     all.push(rec);
     save(KEY_FERMI, all.slice(-300));
   }
+  function pushOpt(rec) {
+    const all = load(KEY_OPT, []);
+    all.push(rec);
+    save(KEY_OPT, all.slice(-300));
+  }
+  const optHistory = () => load(KEY_OPT, []);
   const mmHistory = () => load(KEY_MM, []);
   const fermiHistory = () => load(KEY_FERMI, []);
   /* Which reported questions have been sat, and how many interview sittings so far. */
@@ -45,8 +55,8 @@ const Store = (function () {
   const saveReported = p => save(KEY_REPORTED, p);
 
   function reset() {
-    [KEY_MM, KEY_FERMI, KEY_REPORTED].forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+    [KEY_MM, KEY_FERMI, KEY_REPORTED, KEY_OPT].forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
   }
 
-  return { DEFAULTS, loadSettings, saveSettings, pushMM, pushFermi, mmHistory, fermiHistory, loadReported, saveReported, reset };
+  return { DEFAULTS, loadSettings, saveSettings, pushMM, pushFermi, mmHistory, fermiHistory, pushOpt, optHistory, loadReported, saveReported, reset };
 })();

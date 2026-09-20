@@ -1,9 +1,9 @@
 /* App shell: screens, settings, and the three drills. */
 (function () {
-  const APP_VERSION = 6;
+  const APP_VERSION = 7;
   window.APP_VERSION = APP_VERSION;
   const el = id => document.getElementById(id);
-  const SCREENS = ['home', 'mm', 'mmres', 'fermi', 'fres', 'judge', 'stats', 'brief'];
+  const SCREENS = ['home', 'mm', 'mmres', 'fermi', 'fres', 'opt', 'optres', 'judge', 'stats', 'brief'];
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const sig = Engine.sig;
   const num = Engine.parseNum;
@@ -17,7 +17,7 @@
   /* ---------------- screens ---------------- */
   function show(name) {
     SCREENS.forEach(s => el('screen-' + s).classList.toggle('active', s === name));
-    const inGame = ['mm', 'fermi', 'judge'].includes(name);
+    const inGame = ['mm', 'fermi', 'opt', 'judge'].includes(name);
     el('tabbar').classList.toggle('hidden', inGame);
     const tab = ['stats', 'brief'].includes(name) ? name : 'home';
     document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
@@ -581,6 +581,88 @@
   }
 
   /* ================================================================
+   *                       PRICE A CONTRACT
+   * ================================================================ */
+  let O = null;
+  const OPT_KINDS = {
+    all: null, digital: ['digital-above', 'digital-below'], vanilla: ['call', 'put'], links: ['parity', 'reprice'],
+  };
+  function startOpt() {
+    O = Opt.newRun(settings.optCount, settings.optSecs, OPT_KINDS[settings.optKinds]);
+    show('opt'); renderOpt();
+  }
+  function renderOpt() {
+    const q = O.items[O.idx];
+    el('o-step').textContent = `${O.idx + 1} of ${O.items.length}`;
+    el('o-name').textContent = q.u.name;
+    el('o-market').innerHTML = `${sig(q.u.bid, 4)} at ${sig(q.u.ask, 4)}<small>${esc(q.u.unit)}</small>`;
+    el('o-conv').textContent = 'mid is fair, width is one standard deviation';
+    el('o-say').innerHTML = (q.given ? `<b>Given:</b> ${esc(q.given)}<br>` : '') + `<b>Trader:</b> "${esc(q.ask)}"`;
+    el('o-inputs').innerHTML = `<div class="card">
+      <p class="ilabel">${q.scale === 'points' ? 'Quote between 0 and 100.' : 'Quote in the same units as the market above.'}</p>
+      <div class="pair">
+        <label>Bid<input class="num" id="o-bid" inputmode="decimal" autocomplete="off"></label>
+        <label>Ask<input class="num" id="o-ask" inputmode="decimal" autocomplete="off"></label>
+      </div></div>`;
+    el('o-feedback').classList.add('hidden');
+    el('o-submit').classList.remove('hidden');
+    el('o-next').classList.add('hidden');
+    const bid = el('o-bid'), ask = el('o-ask');
+    bid.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); ask.focus(); } });
+    setTimeout(() => { const n = el('o-bid'); if (n) n.focus(); }, 0);
+    startClock(O.secs, 'o-timer');
+  }
+  function submitOpt() {
+    if (el('o-submit').classList.contains('hidden')) return nextOpt();
+    const b = num(el('o-bid').value), k = num(el('o-ask').value);
+    const f = el('o-feedback');
+    if (!isFinite(b) || !isFinite(k)) {
+      f.className = 'feedback bad'; f.textContent = 'Two numbers, please.'; f.classList.remove('hidden'); return;
+    }
+    stopClock();
+    const a = Opt.grade(O, b, k, elapsed());
+    const q = a.q;
+    const verdict = a.close && a.contains ? 'Good market.' : a.close ? 'Right area, but your market does not contain the value.'
+                  : a.contains ? 'It contains the value, but only because it is wide: your mid is off.' : 'Off.';
+    f.className = 'feedback ' + (a.close && a.legal ? 'good' : 'bad');
+    f.innerHTML = `<b>${esc(verdict)}</b> Model value <b>${Opt.fmt(q.model)}</b>; your mid ${Opt.fmt(a.mid)}.` +
+      `<br>${esc(q.how)}` +
+      (a.why ? `<br><b>${esc(a.why)}</b>` : '') +
+      (a.tooWide ? '<br>That width would not survive in the room: it should be tighter.' : '') +
+      (a.late ? '<br>Over the clock.' : '');
+    f.classList.remove('hidden');
+    el('o-submit').classList.add('hidden');
+    const nx = el('o-next'); nx.classList.remove('hidden');
+    nx.textContent = O.idx >= O.items.length ? 'Debrief' : 'Next';
+    setTimeout(() => nx.focus(), 0);
+  }
+  function nextOpt() {
+    if (O.idx >= O.items.length) return finishOpt();
+    renderOpt();
+  }
+  function finishOpt() {
+    stopClock();
+    const s = Opt.summary(O);
+    Store.pushOpt({ at: Date.now(), pct: s.pct, n: s.n, close: s.close, contains: s.contains, byKind: s.byKind });
+    el('ores-score').textContent = s.pct + '%';
+    el('ores-score').className = 'score ' + (s.pct >= 80 ? 'ok' : s.pct >= 60 ? 'near' : 'no');
+    el('ores-sub').textContent = `${Math.round(s.close * 100)}% of mids close to the model · ${Math.round(s.contains * 100)}% of markets contained it · ${(s.avgMs / 1000).toFixed(0)}s a question`;
+    el('ores-kinds').innerHTML = '<h3>By contract</h3>' + Object.keys(s.byKind).map(k => {
+      const v = s.byKind[k], fr = v.close / v.n;
+      return `<div class="bar-row"><span class="bar-label">${esc(Opt.KIND_NAMES[k])}</span>
+        <span class="bar"><i style="width:${Math.round(fr * 100)}%" class="${fr >= 0.8 ? 'ok' : fr >= 0.5 ? 'near' : 'no'}"></i></span>
+        <span class="bar-val">${v.close}/${v.n}</span></div>`;
+    }).join('');
+    el('ores-list').innerHTML = O.answers.map(a => `
+      <div class="mline ${a.close && a.contains ? 'ok' : a.close || a.contains ? 'near' : 'no'}">
+        <div class="mhead"><b>${esc(a.q.u.name)}: ${sig(a.q.u.bid, 4)} at ${sig(a.q.u.ask, 4)}</b><span>${a.pts}/10</span></div>
+        <ul><li>${esc(a.q.given ? a.q.given + ' ' : '')}${esc(a.q.ask)}</li>
+        <li>You quoted ${Opt.fmt(a.bid)} at ${Opt.fmt(a.ask)}; model value ${Opt.fmt(a.q.model)}.</li>
+        <li class="dim">${esc(a.q.how)}</li></ul></div>`).join('');
+    show('optres');
+  }
+
+  /* ================================================================
    *                          JUDGEMENT
    * ================================================================ */
   let J = null;
@@ -622,6 +704,12 @@
   el('btn-mm').addEventListener('click', startMM);
   el('btn-fermi').addEventListener('click', startFermi);
   el('btn-judge').addEventListener('click', startJudge);
+  el('btn-opt').addEventListener('click', startOpt);
+  el('o-submit').addEventListener('click', submitOpt);
+  el('o-next').addEventListener('click', nextOpt);
+  el('o-quit').addEventListener('click', () => { stopClock(); show('home'); });
+  el('ores-again').addEventListener('click', startOpt);
+  el('ores-home').addEventListener('click', () => show('home'));
   el('mm-submit').addEventListener('click', submitMM);
   el('mm-quit').addEventListener('click', () => { stopClock(); show('home'); });
   el('res-again').addEventListener('click', startMM);
@@ -641,6 +729,7 @@
     if (e.key !== 'Enter') return;
     if (el('screen-mm').classList.contains('active')) { e.preventDefault(); submitMM(); }
     else if (el('screen-fermi').classList.contains('active')) { e.preventDefault(); submitFermi(); }
+    else if (el('screen-opt').classList.contains('active')) { e.preventDefault(); submitOpt(); }
   });
 
   wireSettings(); syncSettings(); refreshHome();

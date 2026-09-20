@@ -43,6 +43,11 @@
     </button>
   </div>
 
+  <button class="start-btn alt wide" id="btn-opt">
+    <span class="start-title">Price a contract</span>
+    <span class="start-desc">you are given a bid and an ask; make a market on a digital, a call or a put written on it</span>
+  </button>
+
   <p class="best-line" id="best-line"></p>
 
   <section class="panel">
@@ -93,6 +98,21 @@
     <label class="toggle-row"><span>Ask for a 90% interval
       <small>the only way to train calibration: you want about nine in ten to contain the answer</small></span>
       <input type="checkbox" data-key="fermiInterval"></label>
+
+    <h2>Price a contract</h2>
+    <div class="setting-row"><label>Questions</label>
+      <div class="seg" data-key="optCount">
+        <button data-val="5">5</button><button data-val="10">10</button><button data-val="20">20</button>
+      </div></div>
+    <div class="setting-row"><label>Per question</label>
+      <div class="seg" data-key="optSecs">
+        <button data-val="0">off</button><button data-val="30">30s</button><button data-val="45">45s</button><button data-val="90">90s</button>
+      </div></div>
+    <div class="setting-row"><label>Contracts</label>
+      <div class="seg" data-key="optKinds">
+        <button data-val="all">All</button><button data-val="digital">Digitals</button><button data-val="vanilla">Calls and puts</button><button data-val="links">Parity and delta</button>
+      </div></div>
+    <p class="note">The convention is always the same and is printed on every question: the mid of the market you are shown is the fair value, and its width is one standard deviation.</p>
 
     <h2>Data</h2>
     <button class="danger-btn" id="btn-reset">Erase all session history</button>
@@ -173,6 +193,50 @@
   <div class="row2">
     <button class="submit-btn" id="fres-again">Another</button>
     <button class="submit-btn ghost" id="fres-home">Home</button>
+  </div>
+</main>
+
+<!-- ==================== PRICE A CONTRACT ==================== -->
+<main id="screen-opt" class="screen">
+  <div class="game-top">
+    <button class="quit" id="o-quit">quit</button>
+    <span id="o-step"></span>
+    <span class="timer" id="o-timer">0:00</span>
+  </div>
+  <div class="scenario-card">
+    <div class="scenario-title" id="o-name"></div>
+    <div class="quote-line" id="o-market"></div>
+    <div class="scenario-title" id="o-conv"></div>
+  </div>
+  <div id="o-say" class="say"></div>
+  <div id="o-inputs"></div>
+  <div id="o-feedback" class="feedback hidden"></div>
+  <button class="submit-btn" id="o-submit">Submit</button>
+  <button class="submit-btn hidden" id="o-next">Next</button>
+  <details class="card crib">
+    <summary>The table, if you need it</summary>
+    <p class="hint">Digital above K: z = (K - fair) / sd, then 100 x the chance of finishing above.</p>
+    <div class="cribrow"><span>z</span><span>0</span><span>0.25</span><span>0.5</span><span>0.67</span><span>1</span><span>1.5</span><span>2</span></div>
+    <div class="cribrow"><span>above</span><span>50</span><span>40</span><span>31</span><span>25</span><span>16</span><span>7</span><span>2</span></div>
+    <p class="hint">Call: d = (fair - K) / sd, value in units of sd. Put = call - (fair - K). After a move, add delta x move.</p>
+    <div class="cribrow"><span>d</span><span>+1</span><span>+0.5</span><span>0</span><span>-0.5</span><span>-1</span><span>-1.5</span><span>-2</span></div>
+    <div class="cribrow"><span>call/sd</span><span>1.08</span><span>0.70</span><span>0.40</span><span>0.20</span><span>0.08</span><span>0.03</span><span>0.01</span></div>
+    <div class="cribrow"><span>delta</span><span>0.84</span><span>0.69</span><span>0.50</span><span>0.31</span><span>0.16</span><span>0.07</span><span>0.02</span></div>
+  </details>
+</main>
+
+<main id="screen-optres" class="screen">
+  <h1>Contracts debrief</h1>
+  <div class="scorebox">
+    <div class="score" id="ores-score"></div>
+    <div class="score-sub" id="ores-sub"></div>
+  </div>
+  <div class="card" id="ores-kinds"></div>
+  <h2>Question by question</h2>
+  <div id="ores-list"></div>
+  <div class="row2">
+    <button class="submit-btn" id="ores-again">Another</button>
+    <button class="submit-btn ghost" id="ores-home">Home</button>
   </div>
 </main>
 
@@ -262,6 +326,7 @@
 <script src="./js/storage.js"></script>
 <script src="./js/engine.js"></script>
 <script src="./js/fermi.js"></script>
+<script src="./js/options.js"></script>
 <script src="./js/stats.js"></script>
 <script src="./js/app.js"></script>
 </body>

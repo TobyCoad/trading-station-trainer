@@ -25,8 +25,8 @@ const Stats = (function () {
   }
 
   function render() {
-    const mm = Store.mmHistory(), fr = Store.fermiHistory();
-    if (!mm.length && !fr.length) {
+    const mm = Store.mmHistory(), fr = Store.fermiHistory(), op = Store.optHistory();
+    if (!mm.length && !fr.length && !op.length) {
       el('stats-body').innerHTML = '<p class="empty">Nothing recorded yet. Make a market.</p>';
       return;
     }
@@ -87,6 +87,30 @@ const Stats = (function () {
         <p class="hint">${Math.abs(bias) < 0.08 ? 'No systematic direction to your misses.'
           : bias > 0 ? 'You estimate high more often than low.' : 'You estimate low more often than high.'}</p>
       </div>`;
+    }
+
+    if (op.length) {
+      const last = op.slice(-10);
+      const avg = Math.round(last.reduce((a, r) => a + r.pct, 0) / last.length);
+      const close = Math.round(100 * last.reduce((a, r) => a + r.close, 0) / last.length);
+      const agg = {};
+      for (const r of op) for (const k of Object.keys(r.byKind || {})) {
+        const a = agg[k] = agg[k] || { c: 0, n: 0 };
+        a.c += r.byKind[k].close; a.n += r.byKind[k].n;
+      }
+      html += `<div class="card"><h3>Price a contract</h3>
+        <div class="kpis">
+          <div><b>${op.length}</b><span>runs</span></div>
+          <div><b>${avg}%</b><span>last 10</span></div>
+          <div><b>${close}%</b><span>mids close</span></div>
+          <div><b>${op.reduce((a, r) => a + r.n, 0)}</b><span>contracts</span></div>
+        </div>
+        ${spark(op.slice(-30).map(r => r.pct), 300, 54)}` +
+        Object.keys(agg).map(k => ({ k, f: agg[k].c / agg[k].n })).sort((a, b) => a.f - b.f).map(r => `<div class="bar-row">
+            <span class="bar-label">${esc(Opt.KIND_NAMES[r.k] || r.k)}</span>
+            <span class="bar"><i style="width:${Math.round(r.f * 100)}%" class="${r.f >= 0.8 ? 'ok' : r.f >= 0.5 ? 'near' : 'no'}"></i></span>
+            <span class="bar-val">${Math.round(r.f * 100)}%</span></div>`).join('') +
+        `<p class="hint">Share of your mids that landed close to the model value, weakest contract first.</p></div>`;
     }
 
     el('stats-body').innerHTML = html;

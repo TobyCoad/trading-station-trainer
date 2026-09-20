@@ -5,7 +5,7 @@ quantity, carry your position and P&L in your head while a trader interrupts you
 follow-ups before the clock runs out. No backend — every session is logged to `localStorage`
 and analysed on the device.
 
-## The three drills
+## The four drills
 
 ### 1. Make a market
 
@@ -84,6 +84,27 @@ same mistake as a spread that is too tight.
 The interruptions as flashcards, with the model answer revealed after each. Fifteen of them, drawn
 from the reported escalation set.
 
+### 4. Price a contract
+
+You are shown a two-way market on a quantity, for example `19 at 21 million cars`, and must make a market on a
+contract written on it. The convention is printed on every question: **the mid is the fair value and the width is
+one standard deviation**, with the quantity treated as roughly normal. That makes every price a mental calculation.
+
+| Contract | How it is priced |
+|---|---|
+| Digital, pays 100 above or below a strike | `z = (K - fair) / sd`, then 100 times the normal tail |
+| Call | `sd x [phi(d) + d Phi(d)]` with `d = (fair - K) / sd`; 0.40 sd at the money |
+| Put | the call, then parity against the fair: `put = call - (fair - K)` |
+| Put from a quoted call | parity alone, using only the call market shown |
+| Reprice after the market moves | old price plus delta times the move; the debrief shows the exact value and calls the gap gamma |
+
+You answer with a bid and an ask. Six of ten points are for a mid close to the model value, two for a market that
+contains it, and one each for a legal, sensibly tight quote and for beating the clock; the last three only count once
+the price is in the right area, so a tidy quote on the wrong number scores nothing. Offering a tail contract below its
+worth is marked as an error. Each answer is followed at once by the working, because this drill is for learning the
+mapping rather than for simulating the room, and a collapsible table of the normal tail and call values is on the
+screen if you need it. Settings choose the number of questions, the clock, and which family to drill.
+
 ## Accuracy of the "true" values
 
 City figures are administrative core-municipality unless the app says otherwise, and the basis is
@@ -116,6 +137,7 @@ style.css           dark trading-desk theme
 js/data.js          30 cities, 60 Fermi quantities, 15 judgement calls
 js/engine.js        scenarios, event script, the book, grading
 js/fermi.js         the sprint and its calibration maths
+js/options.js       price a contract: question generator, normal-model pricing, grading
 js/storage.js       settings and history
 js/stats.js         progress tab
 js/app.js           shell and the three drill loops
