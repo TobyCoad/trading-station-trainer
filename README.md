@@ -12,6 +12,12 @@ and analysed on the device.
 A scenario, an opening quote under a clock, then a scripted sequence of interruptions. The app
 executes trades against your live quote, so your requote is the price the next trade happens at.
 
+**The flow is informed, not random.** Two traders, A and B, each hold a private value close to the
+truth (about 8% and 15% noise on an estimate, tighter where the fair is computable). A trader lifts
+your offer only when it is below their value and hits your bid only when it is above, in more lots
+the further away you are. With their value inside your market they pass, or probe in one lot toward
+the side they lean. News sharpens their values as it sharpens yours. The debrief shows both values.
+
 Two scenario families:
 
 - **City product** — the reported IMC exercise: *distance between two cities x population of the

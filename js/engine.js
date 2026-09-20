@@ -267,10 +267,10 @@ const Engine = (function () {
   };
 
   function buildEvents(sc, preset) {
-    const lots = () => 1 + Math.floor(Math.random() * 3);
-    const flip = () => (Math.random() < 0.5 ? 'buy' : 'sell');
-    const first = flip(), other = first === 'buy' ? 'sell' : 'buy';
-    const T = side => ({ type: 'trade', side, lots: lots() });
+    /* A trade slot has no side yet. Who trades, which way and how big is decided when the
+     * slot is reached, from the traders' own values against the quote then live. */
+    const T = () => ({ type: 'trade' });
+    const first = null, other = null;
     const J = () => ({ type: 'judgement', item: pick(Data.JUDGEMENT) });
     /* A derived market only exists on the city product; elsewhere spend the slot
      * on a judgement call so every preset keeps its length. */
@@ -292,6 +292,62 @@ const Engine = (function () {
             G(), { type: 'pnl' }];
   }
 
+  /* ---------------- the two traders ----------------
+   * Each holds a private value for the contract, close to the truth but not on it, and
+   * trades against your quote for that reason and no other: lifts the offer when it is
+   * below their value, hits the bid when it is above, in more size the further you are
+   * away. With their value inside your market they mostly pass, or probe in one lot
+   * toward the side they lean. So one-sided flow means you are off, and it stops when
+   * you have moved far enough. */
+  function gauss() { let u = 0; for (let i = 0; i < 6; i++) u += Math.random(); return (u - 3) / Math.sqrt(0.5); }
+
+  function traderFair(sc, t, target, k) {
+    if (sc.binary) return Math.min(97, Math.max(3, target + t.sigma * t.z * k));
+    return target * Math.exp(t.sigma * t.z * k);
+  }
+
+  function makeTraders(sc) {
+    const exact = sc.fairValue != null;
+    const target = toScaled(sc, exact ? sc.fairValue : sc.trueValue);
+    const sig2 = sc.binary ? [3, 6] : exact ? [0.02, 0.05] : [0.08, 0.15];
+    return ['A', 'B'].map((name, i) => {
+      const t = { name, sigma: sig2[i], z: gauss(), k: 1 };
+      t.fair = t.fair0 = traderFair(sc, t, target, 1);
+      return t;
+    });
+  }
+
+  /* Public information reaches the traders too: their values close in on the truth. */
+  function sharpenTraders(s) {
+    const sc = s.scenario, target = toScaled(sc, sc.trueValue);
+    for (const t of s.traders || []) { t.k *= 0.4; t.fair = traderFair(sc, t, target, t.k); }
+  }
+
+  function resolveTrade(s, ev) {
+    if (ev.side) return ev;
+    const q = lastQuote(s), mid = (q.bid + q.ask) / 2, half = Math.max((q.ask - q.bid) / 2, 1e-12);
+    const edge = t => Math.max(t.fair - q.ask, q.bid - t.fair);      /* positive when outside your market */
+    let tr = s.traders.slice().sort((a, b) => edge(b) - edge(a))[0];
+    if (Math.random() < 0.3) tr = pick(s.traders);
+    const e = edge(tr);
+    ev.trader = tr.name;
+    if (e > 0) {
+      ev.side = tr.fair > q.ask ? 'buy' : 'sell';
+      ev.lots = Math.min(4, 1 + Math.ceil(e / (2 * half)));
+      s.lastPass = false;
+      return ev;
+    }
+    const lean = (tr.fair - mid) / half;                             /* -1 at your bid, +1 at your ask */
+    /* Never two passes running: a silent station teaches nothing. */
+    const probe = s.trades.length === 0 || s.lastPass ? 1 : Math.abs(lean) > 0.5 ? 0.7 : 0.35;
+    if (Math.random() < probe) {
+      ev.side = Math.abs(lean) < 0.1 ? (Math.random() < 0.5 ? 'buy' : 'sell') : lean > 0 ? 'buy' : 'sell';
+      ev.lots = 1;
+    } else ev.side = 'pass';
+    s.lastPass = ev.side === 'pass';
+    return ev;
+  }
+
   /* ---------------- session ---------------- */
 
   function newSession(mode, presetName, progress) {
@@ -311,6 +367,7 @@ const Engine = (function () {
       scenario: sc, pickKey, pickLast, pickReset, mode,
       preset, presetName,
       events: buildEvents(sc, preset),
+      traders: makeTraders(sc),
       idx: -1,               // -1 = components/opening quote phase
       quotes: [],            // {bid, ask, ms, late}
       trades: [],            // {side, price, lots}
@@ -385,7 +442,7 @@ const Engine = (function () {
     } else {
       /* Direction: the market must move with the flow of the trade just done. */
       const ev = s.events[s.idx];
-      if (ev && ev.type === 'trade') {
+      if (ev && ev.type === 'trade' && ev.side !== 'pass') {
         const moved = (bid + ask) / 2 - (prev.bid + prev.ask) / 2;
         const want = ev.side === 'buy' ? 1 : -1;
         const ok = moved * want > 0;
@@ -422,6 +479,8 @@ const Engine = (function () {
 
   /* Execute the trade sitting at the current event, at the live quote. */
   function fillTrade(s, ev) {
+    resolveTrade(s, ev);
+    if (ev.side === 'pass') return null;
     const q = lastQuote(s);
     const price = ev.side === 'buy' ? q.ask : q.bid;
     s.trades.push({ side: ev.side, price, lots: ev.lots, seq: s.seq++ });
@@ -431,6 +490,7 @@ const Engine = (function () {
   /* News: either reveal one true component (compound) or bracket the truth. */
   function makeNews(s) {
     const sc = s.scenario;
+    sharpenTraders(s);
     if (sc.components && Math.random() < 0.75) {
       const c = pick(sc.components);
       const shown = sig(c.v / c.entryScale, 3) + ' ' + (c.unit === 'millions' ? 'million' : c.unit);
@@ -521,7 +581,7 @@ const Engine = (function () {
   }
 
   return {
-    PRESETS, newSession, nextInterview, interviewPool, reportedScenario, submitQuote, fillTrade, makeNews, makeDerived, makeDigital,
+    PRESETS, newSession, nextInterview, interviewPool, reportedScenario, submitQuote, fillTrade, resolveTrade, makeNews, makeDerived, makeDigital,
     book, pnlAt, lastQuote, lastMid, score, addMark, toScaled, fromScaled,
     parseNum, sig, pickScale, accuracyWord, normCdf,
   };

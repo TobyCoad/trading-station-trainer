@@ -1,6 +1,6 @@
 /* Offline cache - stale-while-revalidate: serves from cache instantly, then
  * refreshes in the background. Bump CACHE together with version.json + APP_VERSION. */
-const CACHE = 'tst-v7';
+const CACHE = 'tst-v8';
 const ASSETS = [
   './', './index.html', './style.css',
   './js/data.js', './js/storage.js', './js/engine.js', './js/fermi.js', './js/options.js', './js/stats.js', './js/app.js',

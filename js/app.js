@@ -1,6 +1,6 @@
 /* App shell: screens, settings, and the three drills. */
 (function () {
-  const APP_VERSION = 7;
+  const APP_VERSION = 8;
   window.APP_VERSION = APP_VERSION;
   const el = id => document.getElementById(id);
   const SCREENS = ['home', 'mm', 'mmres', 'fermi', 'fres', 'opt', 'optres', 'judge', 'stats', 'brief'];
@@ -211,7 +211,9 @@
       const price = Engine.fillTrade(S, ev);
       const verb = ev.side === 'buy' ? 'buy' : 'sell';
       const at = ev.side === 'buy' ? 'your offer of' : 'your bid of';
-      say = `<b>Trader:</b> "I ${verb} ${ev.lots} lot${ev.lots > 1 ? 's' : ''} at ${at} ${sig(price, 4)}. Market?"`;
+      say = ev.side === 'pass'
+        ? `<b>Trader ${ev.trader}:</b> "Nothing to do there, I pass. Same market, or do you want to change it?"`
+        : `<b>Trader ${ev.trader}:</b> "I ${verb} ${ev.lots} lot${ev.lots > 1 ? 's' : ''} at ${at} ${sig(price, 4)}. Market?"`;
       inputs = quoteInputs();
     } else if (ev.type === 'news') {
       const n = Engine.makeNews(S); S.newsShown = n;
@@ -341,7 +343,9 @@
       if (ev.type === 'trade') {
         const bk = Engine.book(S.trades);
         const bookNow = (bk.pos === 0 ? 'flat' : bk.pos > 0 ? 'long ' + bk.pos : 'short ' + (-bk.pos)) + ', cash ' + sig(bk.cash, 4);
-        truth = `They ${ev.side === 'buy' ? 'bought from you, so your mid should move up' : 'sold to you, so your mid should move down'} from ${sig((prevQ.bid + prevQ.ask) / 2, 4)}. Book now: ${bookNow}`;
+        truth = ev.side === 'pass'
+          ? `Trader ${ev.trader} passed, so their value is inside ${sig(prevQ.bid, 4)} at ${sig(prevQ.ask, 4)}. Hold the market or tighten it; do not move the mid. Book now: ${bookNow}`
+          : `Trader ${ev.trader} ${ev.side === 'buy' ? 'paid your offer, so their value is above ' + sig(prevQ.ask, 4) + (ev.lots > 1 ? ', and in ' + ev.lots + ' lots it is well above' : '') + '. Mid up' : 'hit your bid, so their value is below ' + sig(prevQ.bid, 4) + (ev.lots > 1 ? ', and in ' + ev.lots + ' lots it is well below' : '') + '. Mid down'} from ${sig((prevQ.bid + prevQ.ask) / 2, 4)}. Book now: ${bookNow}`;
       } else if (ev.type === 'size') {
         truth = `Widen for size: clearly wider than ${sig(prevQ.ask - prevQ.bid, 3)} (or refuse the size), and say why`;
       } else if (ev.type === 'news') {
@@ -484,6 +488,7 @@
       ${Engine.accuracyWord(q0.logErr)} the ${sc.fairValue != null ? 'fair value' : 'answer'}.</p>
       <p>You finished <b>${r.position === 0 ? 'flat' : r.position > 0 ? 'long ' + r.position : 'short ' + (-r.position)}</b>
       with a settled P&amp;L of <b class="${r.settled >= 0 ? 'pos' : 'neg'}">${r.settled >= 0 ? '+' : ''}${sig(r.settled, 4)}</b> in quoted units.</p>
+      ${S.traders ? `<p>The traders were working from their own values: <b>${S.traders.map(t => 'Trader ' + t.name + ' ' + sig(t.fair0, 3)).join(', ')}</b>${sc.scaleName ? ' ' + sc.scaleName : ''}. Every trade was your quote against one of those numbers, and a pass meant the number was inside your market.</p>` : ''}
       <p class="dim">${esc(sc.hint)}</p>`;
     const order = ['accuracy', 'capture', 'spread', 'spreadcap', 'consistency', 'inputs', 'flow', 'size',
                    'news', 'position', 'pnl', 'derived', 'digital', 'judgement', 'timing', 'crossed'];
