@@ -96,20 +96,30 @@ You are shown a two-way market on a quantity, for example `19 at 21 million cars
 contract written on it. The convention is printed on every question: **the mid is the fair value and the width is
 one standard deviation**, with the quantity treated as roughly normal. That makes every price a mental calculation.
 
+Every strike sits a whole number of half standard deviations from the fair, and one table, printed on the question
+screen, prices everything:
+
+| Distance from fair | 0 | 1/2 sd | 1 sd | 1 1/2 sd | 2 sd |
+|---|---|---|---|---|---|
+| Out of the money | 50% | 31% | 16% | 7% | 2% |
+| In the money | 50% | 69% | 84% | 93% | 98% |
+
 | Contract | How it is priced |
 |---|---|
-| Digital, pays 100 above or below a strike | `z = (K - fair) / sd`, then 100 times the normal tail |
-| Call | `sd x [phi(d) + d Phi(d)]` with `d = (fair - K) / sd`; 0.40 sd at the money |
-| Put | the call, then parity against the fair: `put = call - (fair - K)` |
-| Put from a quoted call | parity alone, using only the call market shown |
-| Reprice after the market moves | old price plus delta times the move; the debrief shows the exact value and calls the gap gamma |
+| Digital | the chance it pays: ask whether it pays if the quantity settles at your fair |
+| Call or put, out of the money | the chance times about two thirds of an sd; 0.4 sd at the fair |
+| Call or put, in the money | intrinsic plus the out-of-the-money price at the same distance |
+| Put from a quoted call | parity alone: `call - (fair - K)` |
+| Reprice after the market moves | shift the fair, recount the distance, read the table again |
+
+The model value is still the exact normal one, and the table method lands inside the "close" band on every question.
 
 You answer with a bid and an ask. Six of ten points are for a mid close to the model value, two for a market that
 contains it, and one each for a legal, sensibly tight quote and for beating the clock; the last three only count once
 the price is in the right area, so a tidy quote on the wrong number scores nothing. Offering a tail contract below its
 worth is marked as an error. Each answer is followed at once by the working, because this drill is for learning the
-mapping rather than for simulating the room, and a collapsible table of the normal tail and call values is on the
-screen if you need it. Settings choose the number of questions, the clock, and which family to drill.
+mapping rather than for simulating the room, written in the same steps as the table: the distance, whether it pays at
+your fair, the chance, then the price. The fair, one sd and half an sd are printed under the market. Settings choose the number of questions, the clock, and which family to drill.
 
 ## Accuracy of the "true" values
 

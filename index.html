@@ -213,16 +213,13 @@
   <div id="o-feedback" class="feedback hidden"></div>
   <button class="submit-btn" id="o-submit">Submit</button>
   <button class="submit-btn hidden" id="o-next">Next</button>
-  <details class="card crib">
-    <summary>The table, if you need it</summary>
-    <p class="hint">Digital above K: z = (K - fair) / sd, then 100 x the chance of finishing above.</p>
-    <div class="cribrow"><span>z</span><span>0</span><span>0.25</span><span>0.5</span><span>0.67</span><span>1</span><span>1.5</span><span>2</span></div>
-    <div class="cribrow"><span>above</span><span>50</span><span>40</span><span>31</span><span>25</span><span>16</span><span>7</span><span>2</span></div>
-    <p class="hint">Call: d = (fair - K) / sd, value in units of sd. Put = call - (fair - K). After a move, add delta x move.</p>
-    <div class="cribrow"><span>d</span><span>+1</span><span>+0.5</span><span>0</span><span>-0.5</span><span>-1</span><span>-1.5</span><span>-2</span></div>
-    <div class="cribrow"><span>call/sd</span><span>1.08</span><span>0.70</span><span>0.40</span><span>0.20</span><span>0.08</span><span>0.03</span><span>0.01</span></div>
-    <div class="cribrow"><span>delta</span><span>0.84</span><span>0.69</span><span>0.50</span><span>0.31</span><span>0.16</span><span>0.07</span><span>0.02</span></div>
-  </details>
+  <div class="card crib">
+    <p class="ilabel">The table. Count how far the strike is from your fair, in sd, then ask: does it pay if it settles at my fair?</p>
+    <div class="cribrow head"><span>distance</span><span>0</span><span>&frac12; sd</span><span>1 sd</span><span>1&frac12; sd</span><span>2 sd</span></div>
+    <div class="cribrow"><span>out of the money</span><span>50%</span><span>31%</span><span>16%</span><span>7%</span><span>2%</span></div>
+    <div class="cribrow"><span>in the money</span><span>50%</span><span>69%</span><span>84%</span><span>93%</span><span>98%</span></div>
+    <p class="hint"><b>Digital:</b> the chance it pays. <b>Call or put, out of the money:</b> the chance &times; about two thirds of an sd (at the fair, 0.4 sd). <b>In the money:</b> intrinsic + the out-of-the-money price at the same distance. <b>Put from a call:</b> call &minus; (fair &minus; strike). <b>After a move:</b> shift the fair and read the table again.</p>
+  </div>
 </main>
 
 <main id="screen-optres" class="screen">

@@ -3,13 +3,20 @@
  *
  * The convention, stated on screen every time: the MID of the market is the fair
  * value and the WIDTH is one standard deviation, with the quantity treated as
- * roughly normal. That is the rule of thumb the quoting ritual uses ("about one
- * standard deviation wide"), and it makes every price here a mental calculation:
+ * roughly normal. Every strike sits a whole number of half standard deviations
+ * from the fair, so one small table prices everything:
  *
- *   digital above K   100 x P(Z > z)             z = (K - fair) / sd
- *   call              sd x [ phi(d) + d Phi(d) ]  d = (fair - K) / sd   (0.4 sd at the money)
- *   put               call - (fair - K)           put-call parity against your own fair
- *   after a move      old price + delta x move    delta = Phi(d)
+ *   distance from fair     0    1/2 sd   1 sd   1 1/2 sd   2 sd
+ *   out of the money      50%    31%     16%      7%        2%
+ *   in the money          50%    69%     84%     93%       98%
+ *
+ *   digital        the chance it pays, x 100
+ *   call or put    out of the money: chance x about 2/3 sd (at the fair: 0.4 sd)
+ *                  in the money: intrinsic + the out-of-the-money price at the same distance
+ *   put from call  call - (fair - K), parity against your own fair
+ *   after a move   shift the fair, recount the distance, read the table again
+ *
+ * The model value is still the exact normal one; the table lands inside the "close" band.
  */
 const Opt = (function () {
   const Phi = z => {
@@ -24,17 +31,16 @@ const Opt = (function () {
   const sig = (v, n) => Engine.sig(v, n);
   const r3 = v => (v === 0 ? 0 : +v.toPrecision(3));           /* three significant figures */
   const fmt = v => r3(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
+  const fix = v => +v.toPrecision(6);
 
-  /* A number a trader would actually say: two or three significant figures. */
-  function nice(v) {
-    if (v === 0) return 0;
-    const mag = Math.pow(10, Math.floor(Math.log10(Math.abs(v))) - 1);
-    return Math.round(v / mag) * mag;
-  }
+  /* The table. Chance of paying, out of the money, by distance in standard deviations. */
+  const OTM = { 0: 50, 0.5: 31, 1: 16, 1.5: 7, 2: 2, 2.5: 1 };
+  const DIST = { 0: 'at the fair', 0.5: 'half an sd', 1: 'one sd', 1.5: 'one and a half sd', 2: 'two sd', 2.5: 'two and a half sd' };
+  const steps = (K, fair, sd) => Math.min(2.5, Math.round(2 * Math.abs(K - fair) / sd) / 2);
 
   /* Underlyings come from the same banks as the rest of the app, in spoken units.
-   * Bid, ask and strikes all sit on one tick, two significant figures at the size of
-   * the mid, so every market reads like something a person would say: 19 at 21. */
+   * The mid sits on a tick and the width is an even number of ticks, so the fair, half
+   * a standard deviation and every strike are all numbers a person would say. */
   function underlying() {
     const pool = Data.FERMI.filter(f => f.v >= 100 && f.v <= 1e13)
       .concat(Data.REPORTED.filter(r => r.type === 'fermi' && !r.variants && !r.sprintOnly && r.v >= 100));
@@ -43,19 +49,35 @@ const Opt = (function () {
     /* The market shown is somebody's quote, not the truth: centre it near, not on, the true value. */
     const raw = (f.v / sc.m) * Math.exp((Math.random() - 0.5) * 0.5);
     const tick = Math.pow(10, Math.floor(Math.log10(raw)) - 1);
-    const snap = v => Math.round(v / tick) * tick;
     const rel = pick([0.10, 0.12, 0.16, 0.20, 0.25]);
-    let bid = snap(raw * (1 - rel / 2)), ask = snap(raw * (1 + rel / 2));
-    if (ask - bid < 2 * tick) { bid = snap(raw) - tick; ask = snap(raw) + tick; }
-    const fix = v => +v.toPrecision(6);
-    return { name: f.q, unit: (sc.name ? sc.name + ' ' : '') + f.unit, bid: fix(bid), ask: fix(ask), tick, snap: v => fix(snap(v)) };
+    let n = Math.max(2, Math.round(raw * rel / tick)); if (n % 2) n += 1;
+    const m = Math.round(raw / tick);
+    return { name: f.q, unit: (sc.name ? sc.name + ' ' : '') + f.unit, bid: fix((m - n / 2) * tick), ask: fix((m + n / 2) * tick), tick };
+  }
+
+  /* The table method for a call or a put, in words, with the estimate it gives. */
+  function byTable(isCall, fair, sd, K) {
+    const s = steps(K, fair, sd), c = OTM[s];
+    const itm = isCall ? K < fair : K > fair, name = isCall ? 'call' : 'put';
+    if (s === 0) return { est: 0.4 * sd, text: `The strike is at your fair. Half the time the ${name} pays nothing, half the time about 0.8 sd: 0.4 x ${fmt(sd)} = ${fmt(0.4 * sd)}.` };
+    const tv = (c / 100) * (2 / 3) * sd;
+    if (!itm) return { est: tv, text: `${sig(K, 4)} is ${DIST[s]} from your fair of ${sig(fair, 4)}, and at the fair the ${name} pays nothing, so it is out of the money: ${c}% chance x about two thirds of an sd (${fmt(2 * sd / 3)}) = ${fmt(tv)}.` };
+    const intr = Math.abs(fair - K);
+    return { est: intr + tv, text: `${sig(K, 4)} is ${DIST[s]} from your fair of ${sig(fair, 4)}, and at the fair the ${name} pays ${fmt(intr)}, so it is in the money: intrinsic ${fmt(intr)} + the out-of-the-money price at the same distance (${c}% x ${fmt(2 * sd / 3)} = ${fmt(tv)}) = ${fmt(intr + tv)}.` };
+  }
+
+  function digitalByTable(above, fair, sd, K) {
+    const s = steps(K, fair, sd), c = OTM[s];
+    if (s === 0) return 'The strike is at your fair: a coin flip, 50.';
+    const pays = above ? fair > K : fair < K;
+    return `${sig(K, 4)} is ${DIST[s]} ${K > fair ? 'above' : 'below'} your fair of ${sig(fair, 4)}. If it settled at your fair this ${pays ? 'pays' : 'does not pay'}, so it is ${pays ? 'in' : 'out of'} the money: ${pays ? '100 - ' + c + ' = ' + (100 - c) : c}.`;
   }
 
   const KINDS = ['digital-above', 'digital-below', 'call', 'put', 'parity', 'reprice'];
 
   function question(kinds) {
     const u = underlying();
-    const fair = (u.bid + u.ask) / 2, sd = u.ask - u.bid;
+    const fair = fix((u.bid + u.ask) / 2), sd = fix(u.ask - u.bid);
     const kind = pick(kinds && kinds.length ? kinds : KINDS);
     /* Strikes are chosen so the contract is worth something you can reason about:
      * no calls three deviations out of the money, no reprice that lands on nothing. */
@@ -64,28 +86,27 @@ const Opt = (function () {
       call: [-1, -0.5, 0, 0.5, 1, 1.5], put: [-1.5, -1, -0.5, 0, 0.5, 1],
       parity: [-1, -0.5, 0.5, 1], reprice: [-0.5, 0, 0.5, 1],
     };
-    const z0 = pick(Z[kind]);
-    let K = u.snap(fair + z0 * sd);
-    if (K <= 0) K = u.snap(fair);
-    const z = (K - fair) / sd;                       /* recomputed from the rounded strike */
+    const z = pick(Z[kind]);
+    const K = fix(fair + z * sd);                    /* exactly on a half-sd step, and on a tick */
     const q = { u, fair, sd, kind, K, z };
+    const exact = v => ` Exact: ${fmt(r3(v))}.`;
 
     if (kind === 'digital-above') {
       q.ask = `A contract pays 100 if the quantity turns out ABOVE ${sig(K, 4)}, and nothing otherwise. Make a market on it.`;
       q.model = 100 * (1 - Phi(z)); q.scale = 'points'; q.tol = 6;
-      q.how = `z = (${sig(K, 4)} - ${sig(fair, 4)}) / ${sig(sd, 3)} = ${z.toFixed(2)}, so the chance of finishing above is ${Math.round(q.model)}%.`;
+      q.how = digitalByTable(true, fair, sd, K);
     } else if (kind === 'digital-below') {
       q.ask = `A contract pays 100 if the quantity turns out BELOW ${sig(K, 4)}, and nothing otherwise. Make a market on it.`;
       q.model = 100 * Phi(z); q.scale = 'points'; q.tol = 6;
-      q.how = `z = (${sig(K, 4)} - ${sig(fair, 4)}) / ${sig(sd, 3)} = ${z.toFixed(2)}, so the chance of finishing below is ${Math.round(q.model)}%. It is 100 minus the "above" contract.`;
+      q.how = digitalByTable(false, fair, sd, K);
     } else if (kind === 'call') {
       q.ask = `A call pays the amount by which the quantity exceeds ${sig(K, 4)}, in the same units, and nothing if it is below. Make a market on it.`;
       q.model = callValue(fair, sd, K); q.scale = 'units'; q.tol = Math.max(0.04 * sd, 0.25 * q.model);
-      q.how = `d = (fair - K) / sd = ${(-z).toFixed(2)}. Call = sd x [phi(d) + d Phi(d)] = ${sig(sd, 3)} x ${(q.model / sd).toFixed(2)}. At the money it would be 0.40 sd.`;
+      q.how = byTable(true, fair, sd, K).text + exact(q.model);
     } else if (kind === 'put') {
       q.ask = `A put pays the amount by which the quantity falls short of ${sig(K, 4)}, in the same units, and nothing if it is above. Make a market on it.`;
       q.model = callValue(fair, sd, K) - (fair - K); q.scale = 'units'; q.tol = Math.max(0.04 * sd, 0.25 * q.model);
-      q.how = `Price the call, ${sig(callValue(fair, sd, K), 3)}, then parity: put = call - (fair - K) = ${sig(callValue(fair, sd, K), 3)} - (${sig(fair - K, 3)}).`;
+      q.how = byTable(false, fair, sd, K).text + exact(q.model);
     } else if (kind === 'parity') {
       /* The call market shown is rounded to three figures, and the answer is built from
        * what is shown, so the put really can be priced from the screen alone. */
@@ -94,14 +115,14 @@ const Opt = (function () {
       q.given = `The ${sig(K, 4)} call is quoted ${fmt(cb)} at ${fmt(ca)}.`;
       q.ask = `Using that call market and nothing else, make a market on the ${sig(K, 4)} put.`;
       q.model = cm - (fair - K); q.scale = 'units'; q.tol = Math.max(0.05 * sd, 0.15 * Math.abs(q.model));
-      q.how = `Parity against the fair: put = call - (fair - K) = ${fmt(cm)} - (${fmt(fair - K)}) = ${fmt(q.model)}. No distribution needed.`;
+      q.how = `Parity against the fair: put = call - (fair - K) = ${fmt(cm)} - (${fmt(fair - K)}) = ${fmt(q.model)}. No table needed.`;
     } else {
-      const c0 = r3(callValue(fair, sd, K)), delta = Phi(-z);
-      const move = u.snap(sd * pick([-0.5, 0.5, 0.5, 1])) || u.tick;
+      const c0 = r3(callValue(fair, sd, K));
+      const move = fix(sd * pick([-0.5, 0.5, 0.5, 1]));
       q.given = `With the market where it is, the ${sig(K, 4)} call is worth ${fmt(c0)}.`;
       q.ask = `The whole market now moves ${move > 0 ? 'UP' : 'DOWN'} by ${fmt(Math.abs(move))}, width unchanged. Make a new market on the call.`;
       q.model = callValue(fair + move, sd, K); q.scale = 'units'; q.tol = Math.max(0.04 * sd, 0.25 * q.model);
-      q.how = `Delta is Phi(d) = ${delta.toFixed(2)}, so a first estimate is ${fmt(c0)} ${move > 0 ? '+' : '-'} ${delta.toFixed(2)} x ${fmt(Math.abs(move))} = ${fmt(r3(c0 + delta * move))}. Exact repricing gives ${fmt(r3(q.model))}; the gap is gamma.`;
+      q.how = `Your fair is now ${sig(fix(fair + move), 4)}. Recount the distance and read the table again. ` + byTable(true, fix(fair + move), sd, K).text + exact(q.model);
     }
     return q;
   }
@@ -157,8 +178,8 @@ const Opt = (function () {
 
   const KIND_NAMES = {
     'digital-above': 'Digital, above', 'digital-below': 'Digital, below', call: 'Call', put: 'Put',
-    parity: 'Put from a call, by parity', reprice: 'Reprice after a move, by delta',
+    parity: 'Put from a call, by parity', reprice: 'Reprice after a move, by the table',
   };
 
-  return { newRun, grade, summary, question, Phi, phi, callValue, KINDS, KIND_NAMES, fmt };
+  return { newRun, grade, summary, question, byTable, Phi, phi, callValue, KINDS, KIND_NAMES, fmt };
 })();

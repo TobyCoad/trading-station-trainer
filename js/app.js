@@ -1,6 +1,6 @@
 /* App shell: screens, settings, and the three drills. */
 (function () {
-  const APP_VERSION = 8;
+  const APP_VERSION = 9;
   window.APP_VERSION = APP_VERSION;
   const el = id => document.getElementById(id);
   const SCREENS = ['home', 'mm', 'mmres', 'fermi', 'fres', 'opt', 'optres', 'judge', 'stats', 'brief'];
@@ -601,7 +601,7 @@
     el('o-step').textContent = `${O.idx + 1} of ${O.items.length}`;
     el('o-name').textContent = q.u.name;
     el('o-market').innerHTML = `${sig(q.u.bid, 4)} at ${sig(q.u.ask, 4)}<small>${esc(q.u.unit)}</small>`;
-    el('o-conv').textContent = 'mid is fair, width is one standard deviation';
+    el('o-conv').textContent = `mid is fair, width is one sd: fair ${sig(q.fair, 4)}, one sd ${sig(q.sd, 4)}, half an sd ${sig(q.sd / 2, 4)}`;
     el('o-say').innerHTML = (q.given ? `<b>Given:</b> ${esc(q.given)}<br>` : '') + `<b>Trader:</b> "${esc(q.ask)}"`;
     el('o-inputs').innerHTML = `<div class="card">
       <p class="ilabel">${q.scale === 'points' ? 'Quote between 0 and 100.' : 'Quote in the same units as the market above.'}</p>
