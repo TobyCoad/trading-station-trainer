@@ -1,6 +1,6 @@
 /* App shell: screens, settings, and the three drills. */
 (function () {
-  const APP_VERSION = 9;
+  const APP_VERSION = 10;
   window.APP_VERSION = APP_VERSION;
   const el = id => document.getElementById(id);
   const SCREENS = ['home', 'mm', 'mmres', 'fermi', 'fres', 'opt', 'optres', 'judge', 'stats', 'brief'];
@@ -601,7 +601,7 @@
     el('o-step').textContent = `${O.idx + 1} of ${O.items.length}`;
     el('o-name').textContent = q.u.name;
     el('o-market').innerHTML = `${sig(q.u.bid, 4)} at ${sig(q.u.ask, 4)}<small>${esc(q.u.unit)}</small>`;
-    el('o-conv').textContent = `mid is fair, width is one sd: fair ${sig(q.fair, 4)}, one sd ${sig(q.sd, 4)}, half an sd ${sig(q.sd / 2, 4)}`;
+    el('o-conv').textContent = 'take the mid as fair and the width as one standard deviation';
     el('o-say').innerHTML = (q.given ? `<b>Given:</b> ${esc(q.given)}<br>` : '') + `<b>Trader:</b> "${esc(q.ask)}"`;
     el('o-inputs').innerHTML = `<div class="card">
       <p class="ilabel">${q.scale === 'points' ? 'Quote between 0 and 100.' : 'Quote in the same units as the market above.'}</p>
@@ -630,7 +630,7 @@
     const verdict = a.close && a.contains ? 'Good market.' : a.close ? 'Right area, but your market does not contain the value.'
                   : a.contains ? 'It contains the value, but only because it is wide: your mid is off.' : 'Off.';
     f.className = 'feedback ' + (a.close && a.legal ? 'good' : 'bad');
-    f.innerHTML = `<b>${esc(verdict)}</b> Model value <b>${Opt.fmt(q.model)}</b>; your mid ${Opt.fmt(a.mid)}.` +
+    f.innerHTML = `<b>${esc(verdict)}</b> Method value <b>${Opt.fmt(q.model)}</b>; your mid ${Opt.fmt(a.mid)}.` +
       `<br>${esc(q.how)}` +
       (a.why ? `<br><b>${esc(a.why)}</b>` : '') +
       (a.tooWide ? '<br>That width would not survive in the room: it should be tighter.' : '') +
@@ -651,7 +651,7 @@
     Store.pushOpt({ at: Date.now(), pct: s.pct, n: s.n, close: s.close, contains: s.contains, byKind: s.byKind });
     el('ores-score').textContent = s.pct + '%';
     el('ores-score').className = 'score ' + (s.pct >= 80 ? 'ok' : s.pct >= 60 ? 'near' : 'no');
-    el('ores-sub').textContent = `${Math.round(s.close * 100)}% of mids close to the model · ${Math.round(s.contains * 100)}% of markets contained it · ${(s.avgMs / 1000).toFixed(0)}s a question`;
+    el('ores-sub').textContent = `${Math.round(s.close * 100)}% of mids close to the method value · ${Math.round(s.contains * 100)}% of markets contained it · ${(s.avgMs / 1000).toFixed(0)}s a question`;
     el('ores-kinds').innerHTML = '<h3>By contract</h3>' + Object.keys(s.byKind).map(k => {
       const v = s.byKind[k], fr = v.close / v.n;
       return `<div class="bar-row"><span class="bar-label">${esc(Opt.KIND_NAMES[k])}</span>
@@ -662,7 +662,7 @@
       <div class="mline ${a.close && a.contains ? 'ok' : a.close || a.contains ? 'near' : 'no'}">
         <div class="mhead"><b>${esc(a.q.u.name)}: ${sig(a.q.u.bid, 4)} at ${sig(a.q.u.ask, 4)}</b><span>${a.pts}/10</span></div>
         <ul><li>${esc(a.q.given ? a.q.given + ' ' : '')}${esc(a.q.ask)}</li>
-        <li>You quoted ${Opt.fmt(a.bid)} at ${Opt.fmt(a.ask)}; model value ${Opt.fmt(a.q.model)}.</li>
+        <li>You quoted ${Opt.fmt(a.bid)} at ${Opt.fmt(a.ask)}; method value ${Opt.fmt(a.q.model)}.</li>
         <li class="dim">${esc(a.q.how)}</li></ul></div>`).join('');
     show('optres');
   }

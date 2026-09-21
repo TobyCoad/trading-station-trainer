@@ -16,7 +16,9 @@
  *   put from call  call - (fair - K), parity against your own fair
  *   after a move   shift the fair, recount the distance, read the table again
  *
- * The model value is still the exact normal one; the table lands inside the "close" band.
+ * The question screen gives none of this away: a market, a contract, a clock. The MARK is the
+ * price this method gives, not the exact normal integral, because the method is what you can
+ * actually do in the room. The exact value is shown beside it after you answer.
  */
 const Opt = (function () {
   const Phi = z => {
@@ -68,9 +70,9 @@ const Opt = (function () {
 
   function digitalByTable(above, fair, sd, K) {
     const s = steps(K, fair, sd), c = OTM[s];
-    if (s === 0) return 'The strike is at your fair: a coin flip, 50.';
+    if (s === 0) return { est: 50, text: 'The strike is at your fair: a coin flip, 50.' };
     const pays = above ? fair > K : fair < K;
-    return `${sig(K, 4)} is ${DIST[s]} ${K > fair ? 'above' : 'below'} your fair of ${sig(fair, 4)}. If it settled at your fair this ${pays ? 'pays' : 'does not pay'}, so it is ${pays ? 'in' : 'out of'} the money: ${pays ? '100 - ' + c + ' = ' + (100 - c) : c}.`;
+    return { est: pays ? 100 - c : c, text: `${sig(K, 4)} is ${DIST[s]} ${K > fair ? 'above' : 'below'} your fair of ${sig(fair, 4)}. If it settled at your fair this ${pays ? 'pays' : 'does not pay'}, so it is ${pays ? 'in' : 'out of'} the money: ${pays ? '100 - ' + c + ' = ' + (100 - c) : c}.` };
   }
 
   const KINDS = ['digital-above', 'digital-below', 'call', 'put', 'parity', 'reprice'];
@@ -89,24 +91,25 @@ const Opt = (function () {
     const z = pick(Z[kind]);
     const K = fix(fair + z * sd);                    /* exactly on a half-sd step, and on a tick */
     const q = { u, fair, sd, kind, K, z };
-    const exact = v => ` Exact: ${fmt(r3(v))}.`;
+    const exact = v => ` Exact normal value, for reference: ${fmt(r3(v))}.`;
+    let t;
 
     if (kind === 'digital-above') {
       q.ask = `A contract pays 100 if the quantity turns out ABOVE ${sig(K, 4)}, and nothing otherwise. Make a market on it.`;
-      q.model = 100 * (1 - Phi(z)); q.scale = 'points'; q.tol = 6;
-      q.how = digitalByTable(true, fair, sd, K);
+      t = digitalByTable(true, fair, sd, K); q.exact = 100 * (1 - Phi(z));
+      q.model = t.est; q.scale = 'points'; q.tol = 6; q.how = t.text + exact(q.exact);
     } else if (kind === 'digital-below') {
       q.ask = `A contract pays 100 if the quantity turns out BELOW ${sig(K, 4)}, and nothing otherwise. Make a market on it.`;
-      q.model = 100 * Phi(z); q.scale = 'points'; q.tol = 6;
-      q.how = digitalByTable(false, fair, sd, K);
+      t = digitalByTable(false, fair, sd, K); q.exact = 100 * Phi(z);
+      q.model = t.est; q.scale = 'points'; q.tol = 6; q.how = t.text + exact(q.exact);
     } else if (kind === 'call') {
       q.ask = `A call pays the amount by which the quantity exceeds ${sig(K, 4)}, in the same units, and nothing if it is below. Make a market on it.`;
-      q.model = callValue(fair, sd, K); q.scale = 'units'; q.tol = Math.max(0.04 * sd, 0.25 * q.model);
-      q.how = byTable(true, fair, sd, K).text + exact(q.model);
+      t = byTable(true, fair, sd, K); q.exact = callValue(fair, sd, K);
+      q.model = t.est; q.scale = 'units'; q.tol = Math.max(0.04 * sd, 0.25 * q.model); q.how = t.text + exact(q.exact);
     } else if (kind === 'put') {
       q.ask = `A put pays the amount by which the quantity falls short of ${sig(K, 4)}, in the same units, and nothing if it is above. Make a market on it.`;
-      q.model = callValue(fair, sd, K) - (fair - K); q.scale = 'units'; q.tol = Math.max(0.04 * sd, 0.25 * q.model);
-      q.how = byTable(false, fair, sd, K).text + exact(q.model);
+      t = byTable(false, fair, sd, K); q.exact = callValue(fair, sd, K) - (fair - K);
+      q.model = t.est; q.scale = 'units'; q.tol = Math.max(0.04 * sd, 0.25 * q.model); q.how = t.text + exact(q.exact);
     } else if (kind === 'parity') {
       /* The call market shown is rounded to three figures, and the answer is built from
        * what is shown, so the put really can be priced from the screen alone. */
@@ -115,14 +118,15 @@ const Opt = (function () {
       q.given = `The ${sig(K, 4)} call is quoted ${fmt(cb)} at ${fmt(ca)}.`;
       q.ask = `Using that call market and nothing else, make a market on the ${sig(K, 4)} put.`;
       q.model = cm - (fair - K); q.scale = 'units'; q.tol = Math.max(0.05 * sd, 0.15 * Math.abs(q.model));
-      q.how = `Parity against the fair: put = call - (fair - K) = ${fmt(cm)} - (${fmt(fair - K)}) = ${fmt(q.model)}. No table needed.`;
+      q.how = `Parity against the fair: put = call - (fair - K) = ${fmt(cm)} - (${fmt(fair - K)}) = ${fmt(q.model)}. No distribution needed.`;
     } else {
       const c0 = r3(callValue(fair, sd, K));
       const move = fix(sd * pick([-0.5, 0.5, 0.5, 1]));
       q.given = `With the market where it is, the ${sig(K, 4)} call is worth ${fmt(c0)}.`;
       q.ask = `The whole market now moves ${move > 0 ? 'UP' : 'DOWN'} by ${fmt(Math.abs(move))}, width unchanged. Make a new market on the call.`;
-      q.model = callValue(fair + move, sd, K); q.scale = 'units'; q.tol = Math.max(0.04 * sd, 0.25 * q.model);
-      q.how = `Your fair is now ${sig(fix(fair + move), 4)}. Recount the distance and read the table again. ` + byTable(true, fix(fair + move), sd, K).text + exact(q.model);
+      t = byTable(true, fix(fair + move), sd, K); q.exact = callValue(fair + move, sd, K);
+      q.model = t.est; q.scale = 'units'; q.tol = Math.max(0.04 * sd, 0.25 * q.model);
+      q.how = `Your fair is now ${sig(fix(fair + move), 4)}. Recount the distance and price it again. ` + t.text + exact(q.exact);
     }
     return q;
   }

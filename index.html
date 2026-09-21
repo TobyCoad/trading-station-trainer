@@ -213,13 +213,6 @@
   <div id="o-feedback" class="feedback hidden"></div>
   <button class="submit-btn" id="o-submit">Submit</button>
   <button class="submit-btn hidden" id="o-next">Next</button>
-  <div class="card crib">
-    <p class="ilabel">The table. Count how far the strike is from your fair, in sd, then ask: does it pay if it settles at my fair?</p>
-    <div class="cribrow head"><span>distance</span><span>0</span><span>&frac12; sd</span><span>1 sd</span><span>1&frac12; sd</span><span>2 sd</span></div>
-    <div class="cribrow"><span>out of the money</span><span>50%</span><span>31%</span><span>16%</span><span>7%</span><span>2%</span></div>
-    <div class="cribrow"><span>in the money</span><span>50%</span><span>69%</span><span>84%</span><span>93%</span><span>98%</span></div>
-    <p class="hint"><b>Digital:</b> the chance it pays. <b>Call or put, out of the money:</b> the chance &times; about two thirds of an sd (at the fair, 0.4 sd). <b>In the money:</b> intrinsic + the out-of-the-money price at the same distance. <b>Put from a call:</b> call &minus; (fair &minus; strike). <b>After a move:</b> shift the fair and read the table again.</p>
-  </div>
 </main>
 
 <main id="screen-optres" class="screen">
@@ -231,6 +224,13 @@
   <div class="card" id="ores-kinds"></div>
   <h2>Question by question</h2>
   <div id="ores-list"></div>
+  <div class="card crib">
+    <p class="ilabel">The method you are marked against. Count how far the strike is from your fair, in sd, then ask: does it pay if it settles at my fair?</p>
+    <div class="cribrow head"><span>distance</span><span>0</span><span>&frac12; sd</span><span>1 sd</span><span>1&frac12; sd</span><span>2 sd</span></div>
+    <div class="cribrow"><span>out of the money</span><span>50%</span><span>31%</span><span>16%</span><span>7%</span><span>2%</span></div>
+    <div class="cribrow"><span>in the money</span><span>50%</span><span>69%</span><span>84%</span><span>93%</span><span>98%</span></div>
+    <p class="hint"><b>Digital:</b> the chance it pays. <b>Call or put, out of the money:</b> the chance &times; about two thirds of an sd (at the fair, 0.4 sd). <b>In the money:</b> intrinsic + the out-of-the-money price at the same distance. <b>Put from a call:</b> call &minus; (fair &minus; strike). <b>After a move:</b> shift the fair and read the table again.</p>
+  </div>
   <div class="row2">
     <button class="submit-btn" id="ores-again">Another</button>
     <button class="submit-btn ghost" id="ores-home">Home</button>

@@ -96,8 +96,9 @@ You are shown a two-way market on a quantity, for example `19 at 21 million cars
 contract written on it. The convention is printed on every question: **the mid is the fair value and the width is
 one standard deviation**, with the quantity treated as roughly normal. That makes every price a mental calculation.
 
-Every strike sits a whole number of half standard deviations from the fair, and one table, printed on the question
-screen, prices everything:
+The question screen shows only what an interviewer would give you: the market, the contract and a clock. Every strike
+sits a whole number of half standard deviations from the fair, and you are **marked against the price this method
+gives**, because it is the one you can run in your head. The table appears on the debrief, not on the question:
 
 | Distance from fair | 0 | 1/2 sd | 1 sd | 1 1/2 sd | 2 sd |
 |---|---|---|---|---|---|
@@ -112,14 +113,14 @@ screen, prices everything:
 | Put from a quoted call | parity alone: `call - (fair - K)` |
 | Reprice after the market moves | shift the fair, recount the distance, read the table again |
 
-The model value is still the exact normal one, and the table method lands inside the "close" band on every question.
+The exact normal value is shown beside the method value after each answer, for reference only.
 
 You answer with a bid and an ask. Six of ten points are for a mid close to the model value, two for a market that
 contains it, and one each for a legal, sensibly tight quote and for beating the clock; the last three only count once
 the price is in the right area, so a tidy quote on the wrong number scores nothing. Offering a tail contract below its
 worth is marked as an error. Each answer is followed at once by the working, because this drill is for learning the
 mapping rather than for simulating the room, written in the same steps as the table: the distance, whether it pays at
-your fair, the chance, then the price. The fair, one sd and half an sd are printed under the market. Settings choose the number of questions, the clock, and which family to drill.
+your fair, the chance, then the price.  Settings choose the number of questions, the clock, and which family to drill.
 
 ## Accuracy of the "true" values
 
