@@ -1,6 +1,6 @@
 /* App shell: screens, settings, and the three drills. */
 (function () {
-  const APP_VERSION = 10;
+  const APP_VERSION = 11;
   window.APP_VERSION = APP_VERSION;
   const el = id => document.getElementById(id);
   const SCREENS = ['home', 'mm', 'mmres', 'fermi', 'fres', 'opt', 'optres', 'judge', 'stats', 'brief'];

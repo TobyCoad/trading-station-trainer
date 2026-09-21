@@ -17,7 +17,8 @@ const Store = (function () {
     fermiInterval: true,
     optCount: 10,
     optSecs: 45,
-    optKinds: 'all',     // all | digital | vanilla | links
+    optKinds: 'digital', // digital | all | vanilla | links
+    optKindsV: 2,        // bumped when the default changes, so a stored 'all' follows it once
     speakPrompts: false,
   };
 
@@ -29,7 +30,12 @@ const Store = (function () {
     try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* private mode */ }
   }
 
-  const loadSettings = () => Object.assign({}, DEFAULTS, load(KEY_SETTINGS, {}));
+  function loadSettings() {
+    const stored = load(KEY_SETTINGS, {});
+    /* The drill now defaults to digitals only; carry an older stored choice over once. */
+    if (stored.optKindsV !== DEFAULTS.optKindsV) { stored.optKinds = DEFAULTS.optKinds; stored.optKindsV = DEFAULTS.optKindsV; save(KEY_SETTINGS, stored); }
+    return Object.assign({}, DEFAULTS, stored);
+  }
   const saveSettings = s => save(KEY_SETTINGS, s);
 
   function pushMM(rec) {
